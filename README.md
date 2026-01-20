@@ -53,7 +53,13 @@ cd ../order-worker && pip install -r requirements.txt
 
 ```bash
 # Levantar todos los servicios en modo desarrollo
-docker-compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.dev.yml up --build
+
+# Detener los servicios
+docker compose -f docker-compose.dev.yml down
+
+# Ver logs
+docker compose -f docker-compose.dev.yml logs -f
 ```
 
 ## 🏃 Scripts
