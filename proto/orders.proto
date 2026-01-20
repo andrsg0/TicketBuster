@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package ticketbuster.orders;
+
+import "common.proto";
+
+// ================================================
+// Order Service
+// Manages order processing and ticket generation
+// ================================================
+
+service OrderService {
+  // Create a new order (initiated by API Gateway)
+  rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
+  
+  // Get order status
+  rpc GetOrderStatus (GetOrderStatusRequest) returns (GetOrderStatusResponse);
+  
+  // Cancel a pending order
+  rpc CancelOrder (CancelOrderRequest) returns (CancelOrderResponse);
+  
+  // Get user's order history
+  rpc GetUserOrders (GetUserOrdersRequest) returns (GetUserOrdersResponse);
+}
+
+// ================================================
+// CreateOrder Messages
+// ================================================
+
+message CreateOrderRequest {
+  string user_id = 1;              // UUID from Keycloak
+  int32 event_id = 2;
+  int32 seat_id = 3;
+  double total_amount = 4;
+  int32 processing_complexity = 5; // 1-10, for CPU load simulation
+  string payment_method = 6;
+  string client_ip = 7;
+}
+
+message CreateOrderResponse {
+  bool success = 1;
+  string order_uuid = 2;
+  string message = 3;
+  OrderStatus status = 4;
+}
+
+// ================================================
+// GetOrderStatus Messages
+// ================================================
+
+message GetOrderStatusRequest {
+  string order_uuid = 1;
+}
+
+message GetOrderStatusResponse {
+  bool success = 1;
+  OrderDetails order = 2;
+}
+
+message OrderDetails {
+  string order_uuid = 1;
+  string user_id = 2;
+  int32 event_id = 3;
+  int32 seat_id = 4;
+  double total_amount = 5;
+  OrderStatus status = 6;
+  string qr_code_hash = 7;
+  ticketbuster.common.Timestamp created_at = 8;
+  ticketbuster.common.Timestamp completed_at = 9;
+  string error_message = 10;
+}
+
+// ================================================
+// CancelOrder Messages
+// ================================================
+
+message CancelOrderRequest {
+  string order_uuid = 1;
+  string user_id = 2;  // Must match order owner
+  string reason = 3;
+}
+
+message CancelOrderResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ================================================
+// GetUserOrders Messages
+// ================================================
+
+message GetUserOrdersRequest {
+  string user_id = 1;
+  ticketbuster.common.Pagination pagination = 2;
+  OrderStatus filter_status = 3;  // Optional filter
+}
+
+message GetUserOrdersResponse {
+  repeated OrderDetails orders = 1;
+  ticketbuster.common.Pagination pagination = 2;
+}
+
+// ================================================
+// Enums
+// ================================================
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_PROCESSING = 2;
+  ORDER_STATUS_COMPLETED = 3;
+  ORDER_STATUS_FAILED = 4;
+  ORDER_STATUS_CANCELLED = 5;
+}

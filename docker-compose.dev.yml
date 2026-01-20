@@ -1,68 +1,186 @@
+# ================================================
+# TicketBuster - Docker Compose Development
+# Infrastructure Services Only (Etapa 2)
+# ================================================
+
 services:
-  # API Gateway
-  api-gateway:
-    build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
+  # ================================================
+  # PostgreSQL Database (Database per Service Pattern)
+  # ================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ticketbuster-postgres
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
-      - NODE_ENV=development
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      POSTGRES_DB: ${POSTGRES_DB:-ticketbuster}
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - ./api-gateway:/app
-      - /app/node_modules
+      # Auto-initialize database with schemas and sample data
+      - ./k8s/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # Persistent data storage
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ticketbuster-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-ticketbuster}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Catalog Service
-  catalog-service:
-    build:
-      context: ./catalog-service
-      dockerfile: Dockerfile
+  # ================================================
+  # RabbitMQ Message Broker
+  # ================================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ticketbuster-rabbitmq
+    restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "${RABBITMQ_PORT:-5672}:5672"       # AMQP protocol
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"  # Management UI
     environment:
-      - NODE_ENV=development
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
     volumes:
-      - ./catalog-service:/app
-      - /app/node_modules
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_logs:/var/log/rabbitmq
+    networks:
+      - ticketbuster-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Order Worker
-  order-worker:
-    build:
-      context: ./order-worker
-      dockerfile: Dockerfile
+  # ================================================
+  # Keycloak Identity & Access Management
+  # ================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: ticketbuster-keycloak
+    restart: unless-stopped
+    command: start-dev
     ports:
-      - "8000:8000"
+      - "${KEYCLOAK_PORT:-8080}:8080"
     environment:
-      - PYTHONUNBUFFERED=1
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
+      # Development mode - uses H2 database internally
+      KC_DB: h2-file
     volumes:
-      - ./order-worker:/app
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - ticketbuster-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
-  # Notification Service
-  notification-service:
-    build:
-      context: ./notification-service
-      dockerfile: Dockerfile
-    ports:
-      - "3002:3002"
-    environment:
-      - NODE_ENV=development
-    volumes:
-      - ./notification-service:/app
-      - /app/node_modules
+  # ================================================
+  # Application Services (Coming in Etapa 3)
+  # ================================================
+  # Uncomment when ready to integrate microservices
+  
+  # api-gateway:
+  #   build:
+  #     context: ./api-gateway
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=development
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-ticketbuster}
+  #     - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+  #   depends_on:
+  #     - postgres
+  #     - rabbitmq
+  #   networks:
+  #     - ticketbuster-network
 
-  # Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
-    environment:
-      - NODE_ENV=development
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+  # catalog-service:
+  #   build:
+  #     context: ./catalog-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3001:3001"
+  #   environment:
+  #     - NODE_ENV=development
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-ticketbuster}
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - ticketbuster-network
 
+  # order-worker:
+  #   build:
+  #     context: ./order-worker
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-ticketbuster}
+  #     - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+  #   depends_on:
+  #     - postgres
+  #     - rabbitmq
+  #   networks:
+  #     - ticketbuster-network
+
+  # notification-service:
+  #   build:
+  #     context: ./notification-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3002:3002"
+  #   environment:
+  #     - NODE_ENV=development
+  #     - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+  #   depends_on:
+  #     - rabbitmq
+  #   networks:
+  #     - ticketbuster-network
+
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "5173:5173"
+  #   environment:
+  #     - NODE_ENV=development
+  #     - VITE_API_URL=http://localhost:3000
+  #     - VITE_KEYCLOAK_URL=http://localhost:8080
+  #   depends_on:
+  #     - api-gateway
+  #   networks:
+  #     - ticketbuster-network
+
+# ================================================
+# Networks
+# ================================================
 networks:
-  default:
+  ticketbuster-network:
+    driver: bridge
     name: ticketbuster-network
+
+# ================================================
+# Volumes (Persistent Data)
+# ================================================
+volumes:
+  postgres_data:
+    name: ticketbuster_postgres_data
+  rabbitmq_data:
+    name: ticketbuster_rabbitmq_data
+  rabbitmq_logs:
+    name: ticketbuster_rabbitmq_logs
+  keycloak_data:
+    name: ticketbuster_keycloak_data
