@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package ticketbuster.events;
+
+import "common.proto";
+
+// Event Catalog Service
+
+service EventCatalog {
+  rpc GetEvent (GetEventRequest) returns (Event);
+  rpc ListEvents (ListEventsRequest) returns (ListEventsResponse);
+  rpc GetAvailableSeats (GetAvailableSeatsRequest) returns (GetAvailableSeatsResponse);
+}
+
+message Event {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string venue = 4;
+  ticketbuster.common.Timestamp event_date = 5;
+  int32 total_seats = 6;
+  int32 available_seats = 7;
+}
+
+message GetEventRequest {
+  string event_id = 1;
+}
+
+message ListEventsRequest {
+  ticketbuster.common.Pagination pagination = 1;
+  string filter = 2;
+}
+
+message ListEventsResponse {
+  repeated Event events = 1;
+  ticketbuster.common.Pagination pagination = 2;
+}
+
+message Seat {
+  string id = 1;
+  string section = 2;
+  int32 row = 3;
+  int32 number = 4;
+  string status = 5; // available, reserved, sold
+  double price = 6;
+}
+
+message GetAvailableSeatsRequest {
+  string event_id = 1;
+}
+
+message GetAvailableSeatsResponse {
+  repeated Seat seats = 1;
+}

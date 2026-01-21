@@ -7,7 +7,10 @@ import pool from './db.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const protoPath = path.resolve(__dirname, '..', '..', 'proto', 'inventory.proto');
+// Buscar proto files en la carpeta proto dentro del proyecto
+// En desarrollo: /app/src/../proto = /app/proto
+// Funciona tanto local como en Docker
+const protoPath = path.resolve(__dirname, '..', 'proto', 'inventory.proto');
 const packageDefinition = protoLoader.loadSync(protoPath, {
   keepCase: true,
   longs: String,

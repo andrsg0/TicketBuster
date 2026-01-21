@@ -1,0 +1,11 @@
+{
+  "order_uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event_id": 42,
+  "seat_id": 1337,
+  "seat_number": "SECT-A-1337",
+  "qr_code_hash": "8f7d3c2a1b0e9f8d7c6b5a4e3d2c1b0a",
+  "total_amount": 89.99,
+  "processing_time_ms": 3450,
+  "completed_at": "2026-01-20T14:30:45.000Z"
+}

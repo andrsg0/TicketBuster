@@ -1,0 +1,485 @@
+# ============================================================================
+# TicketBuster Microservices - Deployments & Services
+# ============================================================================
+# Incluye: Frontend, API Gateway, Catalog Service, Notification Service, Order Worker
+# Todos con resource limits definidos para cumplir con best practices de K8s
+# ============================================================================
+
+---
+# ============================================================================
+# CONFIGMAP - Variables de entorno compartidas
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: ticketbuster
+data:
+  NODE_ENV: "production"
+  # URLs internas del cluster (DNS de Kubernetes)
+  DATABASE_URL: "postgresql://admin:admin@postgres:5432/ticketbuster"
+  RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+  CATALOG_SERVICE_URL: "http://catalog-service:3000"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:4000"
+  API_GATEWAY_URL: "http://api-gateway:8000"
+  # Keycloak (si aplica)
+  KEYCLOAK_URL: "http://keycloak:8080"
+  KEYCLOAK_REALM: "ticketbuster"
+
+---
+# ============================================================================
+# FRONTEND - React/Vite Application
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: ticketbuster
+  labels:
+    app: frontend
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ticketbuster/frontend:latest
+          imagePullPolicy: Never  # Usa solo imagen local
+          ports:
+            - containerPort: 5173
+              name: http
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: NODE_ENV
+            - name: VITE_API_URL
+              value: "/api"  # Proxy a través de api-gateway
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: ticketbuster
+  labels:
+    app: frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5173
+      targetPort: 5173
+      name: http
+  selector:
+    app: frontend
+
+---
+# ============================================================================
+# API GATEWAY - Express.js Entry Point
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: ticketbuster
+  labels:
+    app: api-gateway
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: backend
+    spec:
+      containers:
+        - name: api-gateway
+          image: ticketbuster/api-gateway:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: PORT
+              value: "8000"
+            - name: CATALOG_URL
+              value: "http://catalog-service:3000"
+            - name: NOTIFICATION_URL
+              value: "http://notification-service:4000"
+            # RabbitMQ
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_PASS
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: ticketbuster
+  labels:
+    app: api-gateway
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  selector:
+    app: api-gateway
+
+---
+# ============================================================================
+# CATALOG SERVICE - Event & Seat Management
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-service
+  namespace: ticketbuster
+  labels:
+    app: catalog-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: catalog-service
+  template:
+    metadata:
+      labels:
+        app: catalog-service
+        tier: backend
+    spec:
+      containers:
+        - name: catalog-service
+          image: ticketbuster/catalog-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+              name: http
+            - containerPort: 50051
+              name: grpc
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: PORT
+              value: "3000"
+            - name: GRPC_PORT
+              value: "50051"
+            # Database
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "ticketbuster"
+            - name: DB_USER
+              value: "admin"
+            - name: DB_PASS
+              value: "admin"
+            - name: DB_SCHEMA
+              value: "db_catalog"
+            # RabbitMQ
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_PASS
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-service
+  namespace: ticketbuster
+  labels:
+    app: catalog-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+    - port: 50051
+      targetPort: 50051
+      name: grpc
+  selector:
+    app: catalog-service
+
+---
+# ============================================================================
+# NOTIFICATION SERVICE - WebSocket & Push Notifications
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: ticketbuster
+  labels:
+    app: notification-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+        tier: backend
+    spec:
+      containers:
+        - name: notification-service
+          image: ticketbuster/notification-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 4000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: PORT
+              value: "4000"
+            # RabbitMQ
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_PASS
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: ticketbuster
+  labels:
+    app: notification-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4000
+      targetPort: 4000
+      name: http
+  selector:
+    app: notification-service
+
+---
+# ============================================================================
+# ORDER WORKER - Python QR Generation (HPA Target)
+# ============================================================================
+# NOTA CRÍTICA: Este deployment NO tiene CPU limits para permitir bursting
+# y que el HPA pueda detectar los picos de uso durante generación de QRs.
+# Solo tiene requests para scheduling y memory limits para evitar OOM.
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-worker
+  namespace: ticketbuster
+  labels:
+    app: order-worker
+    tier: worker
+spec:
+  replicas: 1  # HPA controlará el scaling
+  selector:
+    matchLabels:
+      app: order-worker
+  template:
+    metadata:
+      labels:
+        app: order-worker
+        tier: worker
+    spec:
+      containers:
+        - name: order-worker
+          image: ticketbuster/order-worker:latest
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            # Database (PostgreSQL)
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "ticketbuster"
+            - name: DB_USER
+              value: "admin"
+            - name: DB_PASSWORD
+              value: "admin"
+            - name: DB_SCHEMA
+              value: "db_orders"
+            # RabbitMQ
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_PASS
+            - name: RABBITMQ_VHOST
+              value: "/"
+            # Queue Names
+            - name: ORDERS_QUEUE
+              value: "orders_queue"
+            - name: NOTIFICATIONS_QUEUE
+              value: "notifications_queue"
+            # gRPC Catalog Service
+            - name: GRPC_CATALOG_HOST
+              value: "catalog-service"
+            - name: GRPC_CATALOG_PORT
+              value: "50051"
+            # Worker Config
+            - name: PREFETCH_COUNT
+              value: "1"
+            - name: WORKER_NAME
+              value: "order-worker-k8s"
+            - name: LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              cpu: 200m      # Suficiente para scheduling
+              memory: 256Mi
+            # ⚠️ SIN CPU LIMITS - Permite bursting para QR generation
+            # El HPA detectará el uso real de CPU y escalará
+            limits:
+              memory: 1Gi   # Solo limit de memoria para evitar OOM
+          # No hay liveness/readiness probes típicos para workers
+          # El worker se conecta a RabbitMQ y procesa mensajes

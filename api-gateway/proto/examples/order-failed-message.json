@@ -1,0 +1,11 @@
+{
+  "order_uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event_id": 42,
+  "seat_id": 1337,
+  "error_code": "SEAT_UNAVAILABLE",
+  "error_message": "El asiento seleccionado ya no está disponible",
+  "retry_count": 1,
+  "can_retry": true,
+  "failed_at": "2026-01-20T14:30:15.000Z"
+}

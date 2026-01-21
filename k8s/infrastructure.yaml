@@ -1,0 +1,285 @@
+# ============================================================================
+# TicketBuster Infrastructure - PostgreSQL & RabbitMQ
+# ============================================================================
+# Stateful services con PersistentVolumeClaims para datos persistentes
+# ============================================================================
+
+---
+# ============================================================================
+# SECRETS - Credenciales de Base de Datos y Message Broker
+# ============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: ticketbuster
+type: Opaque
+stringData:
+  POSTGRES_USER: admin
+  POSTGRES_PASSWORD: admin
+  POSTGRES_DB: ticketbuster
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-secret
+  namespace: ticketbuster
+type: Opaque
+stringData:
+  RABBITMQ_DEFAULT_USER: guest
+  RABBITMQ_DEFAULT_PASS: guest
+
+---
+# ============================================================================
+# CONFIGMAPS
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: ticketbuster
+data:
+  init.sql: |
+    -- Este ConfigMap se monta en el contenedor de Postgres
+    -- El contenido real viene del archivo k8s/init.sql
+    -- Se aplicará automáticamente al crear la base de datos
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIMS
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: ticketbuster
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: standard  # Descomentar si tu cluster lo requiere
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-pvc
+  namespace: ticketbuster
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# ============================================================================
+# POSTGRESQL DEPLOYMENT
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: ticketbuster
+  labels:
+    app: postgres
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  strategy:
+    type: Recreate  # Importante para DBs con volúmenes persistentes
+  template:
+    metadata:
+      labels:
+        app: postgres
+        tier: database
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - admin
+                - -d
+                - ticketbuster
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - admin
+                - -d
+                - ticketbuster
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: init-scripts
+          configMap:
+            name: postgres-init
+
+---
+# ============================================================================
+# POSTGRESQL SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ticketbuster
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: postgres
+
+---
+# ============================================================================
+# RABBITMQ DEPLOYMENT
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: ticketbuster
+  labels:
+    app: rabbitmq
+    tier: messaging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        tier: messaging
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4.0-management-alpine
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_PASS
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: rabbitmq-data
+          persistentVolumeClaim:
+            claimName: rabbitmq-pvc
+
+---
+# ============================================================================
+# RABBITMQ SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: ticketbuster
+  labels:
+    app: rabbitmq
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5672
+      targetPort: 5672
+      name: amqp
+    - port: 15672
+      targetPort: 15672
+      name: management
+  selector:
+    app: rabbitmq

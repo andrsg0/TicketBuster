@@ -56,3 +56,7 @@ coverage/
 
 # Docker
 .dockerignore
+
+# Cloudflare tunnel secret with real token
+k8s/tunnel-secret-real.yaml
+k8s/*-secret-real.yaml
