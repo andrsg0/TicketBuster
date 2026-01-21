@@ -90,7 +90,41 @@ kubectl apply -f "$ROOT_DIR\k8s\namespace.yaml" 2>&1 | Out-Null
 # Infrastructure
 Write-Host "  Desplegando PostgreSQL y RabbitMQ..." -ForegroundColor Blue
 kubectl apply -f "$ROOT_DIR\k8s\infrastructure.yaml" 2>&1 | Out-Null
-Start-Sleep -Seconds 10
+
+# Esperar a que PostgreSQL y RabbitMQ esten listos
+Write-Host "  Esperando a que PostgreSQL este listo..." -ForegroundColor DarkGray
+$maxWait = 60
+$waited = 0
+while ($waited -lt $maxWait) {
+    $pgReady = kubectl get pods -n $NAMESPACE -l app=postgres -o jsonpath='{.items[0].status.phase}' 2>&1
+    if ($pgReady -eq "Running") {
+        $pgContainerReady = kubectl get pods -n $NAMESPACE -l app=postgres -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>&1
+        if ($pgContainerReady -eq "true") {
+            Write-Host "  [OK] PostgreSQL listo" -ForegroundColor Green
+            break
+        }
+    }
+    Start-Sleep -Seconds 2
+    $waited += 2
+}
+
+Write-Host "  Esperando a que RabbitMQ este listo..." -ForegroundColor DarkGray
+$waited = 0
+while ($waited -lt $maxWait) {
+    $rmqReady = kubectl get pods -n $NAMESPACE -l app=rabbitmq -o jsonpath='{.items[0].status.phase}' 2>&1
+    if ($rmqReady -eq "Running") {
+        $rmqContainerReady = kubectl get pods -n $NAMESPACE -l app=rabbitmq -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>&1
+        if ($rmqContainerReady -eq "true") {
+            Write-Host "  [OK] RabbitMQ listo" -ForegroundColor Green
+            break
+        }
+    }
+    Start-Sleep -Seconds 2
+    $waited += 2
+}
+
+# Dar tiempo extra para que los servicios internos inicien
+Start-Sleep -Seconds 5
 
 # Services
 Write-Host "  Desplegando microservicios..." -ForegroundColor Blue
@@ -103,10 +137,42 @@ kubectl apply -f "$ROOT_DIR\k8s\hpa.yaml" 2>&1 | Out-Null
 Write-Host "[OK] Kubernetes deployment aplicado" -ForegroundColor Green
 
 # ============================================================================
-# PASO 4: Esperar a que los pods esten listos
+# PASO 4: Inicializar base de datos
 # ============================================================================
 Write-Host ""
-Write-Host "[PASO 4/5] Esperando a que los pods esten listos..." -ForegroundColor Yellow
+Write-Host "[PASO 4/6] Inicializando base de datos..." -ForegroundColor Yellow
+
+# Esperar a que postgres esté completamente listo
+Start-Sleep -Seconds 5
+
+# Obtener nombre del pod de postgres
+$pgPod = kubectl get pods -n $NAMESPACE -l app=postgres -o jsonpath='{.items[0].metadata.name}' 2>&1
+
+# Verificar si la BD ya tiene datos
+$eventCount = kubectl exec -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -t -c "SELECT COUNT(*) FROM db_catalog.events;" 2>&1
+$eventCount = $eventCount -replace '\s',''
+
+if ($eventCount -match '^\d+$' -and [int]$eventCount -gt 0) {
+    Write-Host "  [SKIP] Base de datos ya tiene $eventCount eventos" -ForegroundColor Cyan
+} else {
+    Write-Host "  Copiando init.sql..." -ForegroundColor DarkGray
+    kubectl cp "$ROOT_DIR\k8s\init.sql" "${NAMESPACE}/${pgPod}:/tmp/init.sql" 2>&1 | Out-Null
+
+    Write-Host "  Ejecutando init.sql..." -ForegroundColor DarkGray
+    kubectl exec -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -f /tmp/init.sql 2>&1 | Out-Null
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Base de datos inicializada con 20 eventos" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] Posible error en init.sql" -ForegroundColor Yellow
+    }
+}
+
+# ============================================================================
+# PASO 5: Esperar a que los pods esten listos
+# ============================================================================
+Write-Host ""
+Write-Host "[PASO 5/6] Esperando a que los pods esten listos..." -ForegroundColor Yellow
 Write-Host "  (Esto puede tardar 2-3 minutos...)" -ForegroundColor DarkGray
 Write-Host ""
 
@@ -120,10 +186,10 @@ Write-Host "Esperando 30 segundos mas para que todo inicie..." -ForegroundColor 
 Start-Sleep -Seconds 30
 
 # ============================================================================
-# PASO 5: Iniciar port-forwards y abrir navegador
+# PASO 6: Iniciar port-forwards y abrir navegador
 # ============================================================================
 Write-Host ""
-Write-Host "[PASO 5/5] Iniciando acceso local..." -ForegroundColor Yellow
+Write-Host "[PASO 6/6] Iniciando acceso local..." -ForegroundColor Yellow
 
 # Frontend
 Write-Host "  [*] Frontend -> http://localhost:5173" -ForegroundColor Blue

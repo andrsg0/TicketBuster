@@ -45,7 +45,7 @@ TicketBuster es un **sistema de venta de entradas nativo de nube** diseñado com
 ### Contexto Académico
 
 Este proyecto fue desarrollado como trabajo integrador de dos cursos:
-- **Programación Web Avanzada:** Enfoque en frontend moderno, PWA, offline-first
+- **Programación Web:** Enfoque en frontend moderno, PWA, offline-first
 - **Sistemas Distribuidos:** Enfoque en microservicios, orquestación, patrones distribuidos
 
 ### Problema a Resolver

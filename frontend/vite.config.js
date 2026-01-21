@@ -95,7 +95,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.API_URL || 'http://api-gateway:8000',
         changeOrigin: true
       }
     }

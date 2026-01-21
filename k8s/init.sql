@@ -481,6 +481,7 @@ CREATE TABLE IF NOT EXISTS db_orders.orders (
     total_amount DECIMAL(10, 2) NOT NULL CHECK (total_amount >= 0),
     status db_orders.order_status NOT NULL DEFAULT 'PENDING',
     qr_code_hash TEXT,
+    qr_code_base64 TEXT,
     processing_complexity INTEGER CHECK (processing_complexity BETWEEN 1 AND 10),
     payment_reference VARCHAR(255),
     error_message TEXT,

@@ -141,6 +141,17 @@ spec:
               value: "http://catalog-service:3000"
             - name: NOTIFICATION_URL
               value: "http://notification-service:4000"
+            # PostgreSQL
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: "ticketbuster"
+            - name: POSTGRES_USER
+              value: "admin"
+            - name: POSTGRES_PASSWORD
+              value: "admin"
             # RabbitMQ
             - name: RABBITMQ_HOST
               value: "rabbitmq"
