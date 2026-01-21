@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
     "start": "node index.js",
@@ -15,10 +15,10 @@
   "author": "TicketBuster Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^5.0.0",
-    "ws": "^8.18.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "morgan": "^1.10.0"
+    "amqplib": "*",
+    "cors": "*",
+    "dotenv": "*",
+    "express": "^4.21.0",
+    "ws": "*"
   }
 }
