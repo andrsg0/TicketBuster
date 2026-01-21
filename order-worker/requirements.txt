@@ -1,9 +1,6 @@
 # TicketBuster Order Worker - Python Dependencies
 # Updated for Python 3.13 (January 2026)
-
-# Web Framework
-fastapi>=0.115.6
-uvicorn[standard]>=0.34.0
+# Daemon that consumes from RabbitMQ and processes orders
 
 # Data Validation
 pydantic>=2.10.4
@@ -12,19 +9,20 @@ pydantic-settings>=2.7.1
 # Environment
 python-dotenv>=1.0.1
 
-# HTTP Client
-httpx>=0.28.1
-
-# Database
-asyncpg>=0.30.0
+# Database (sync for simplicity in worker daemon)
+psycopg2-binary>=2.9.10
 sqlalchemy>=2.0.36
 
-# Message Queue
-aio-pika>=9.5.4
+# Message Queue (sync version for daemon pattern)
+pika>=1.3.2
 
 # gRPC
 grpcio>=1.69.0
 grpcio-tools>=1.69.0
 
+# QR Code Generation (CPU-intensive for K8s autoscaling demo)
+qrcode>=8.0
+pillow>=11.0.0
+
 # Utilities
-python-multipart>=0.0.20
+python-json-logger>=3.2.1

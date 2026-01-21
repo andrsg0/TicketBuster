@@ -8,9 +8,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '..', '.env') });
 
-// Mock user for development mode
+// Mock user for development mode (must use valid UUIDs for DB compatibility)
 const MOCK_USER = {
-  sub: 'dev-user-123',
+  sub: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',  // Valid UUID for dev testing
   preferred_username: 'devuser',
   email: 'dev@ticketbuster.local',
 };

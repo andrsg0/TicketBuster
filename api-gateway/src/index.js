@@ -55,23 +55,27 @@ app.get('/api/events/:id', async (req, res) => {
 // Protected route: Create order (async - returns 202 Accepted)
 app.post('/api/buy', authMiddleware, async (req, res) => {
   try {
-    const { event_id, seat_id } = req.body;
+    const { event_id, seat_id, total_amount } = req.body;
 
     // Validate input
     if (!event_id || !seat_id) {
       return res.status(400).json({ error: 'event_id and seat_id are required' });
     }
 
-    const orderId = uuidv4();
+    const orderUuid = uuidv4();
 
-    // Build order message
+    // Build order message matching RABBITMQ_SCHEMA.md
     const orderData = {
-      order_id: orderId,
-      user_id: req.user.sub,
-      event_id,
-      seat_id,
-      complexity_level: Math.floor(Math.random() * 10) + 1,
-      created_at: new Date().toISOString(),
+      order_uuid: orderUuid,
+      user_id: req.user.sub,  // Must be a valid UUID from Keycloak
+      event_id: parseInt(event_id),
+      seat_id: parseInt(seat_id),
+      total_amount: parseFloat(total_amount) || 0.0,
+      processing_complexity: Math.floor(Math.random() * 10) + 1,
+      timestamp: new Date().toISOString(),
+      payment_method: 'credit_card',
+      retry_count: 0,
+      priority: 5
     };
 
     // Send to RabbitMQ queue
@@ -84,11 +88,12 @@ app.post('/api/buy', authMiddleware, async (req, res) => {
     // Respond with 202 Accepted (asynchronous processing)
     res.status(202).json({
       message: 'Orden recibida y procesándose',
-      order_id: orderId,
+      order_uuid: orderUuid,
       data: {
         user_id: orderData.user_id,
         event_id: orderData.event_id,
         seat_id: orderData.seat_id,
+        total_amount: orderData.total_amount
       },
     });
 
