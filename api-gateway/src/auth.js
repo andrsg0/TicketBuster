@@ -1,6 +1,12 @@
 import jwt from 'jsonwebtoken';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import dotenv from 'dotenv';
 
-const DEV_MODE = process.env.DEV_MODE === 'true';
+// Load .env from the api-gateway root directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '..', '.env') });
 
 // Mock user for development mode
 const MOCK_USER = {
@@ -22,8 +28,11 @@ export function authMiddleware(req, res, next) {
 
   const token = authHeader.substring(7);
 
-  // Development mode: bypass validation
-  if (DEV_MODE) {
+  // Development mode: bypass validation and use mock user
+  const devMode = process.env.DEV_MODE === 'true';
+  console.log(`DEV_MODE: ${process.env.DEV_MODE}, devMode: ${devMode}`);
+  
+  if (devMode) {
     console.warn('⚠️  DEV_MODE enabled: Bypassing JWT validation');
     req.user = MOCK_USER;
     return next();
