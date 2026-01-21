@@ -55,6 +55,7 @@ class Order(Base):
     total_amount = Column(Numeric(10, 2), nullable=False)
     status = Column(String(50), nullable=False, default='PENDING')
     qr_code_hash = Column(Text, nullable=True)
+    qr_code_base64 = Column(Text, nullable=True)
     processing_complexity = Column(Integer, nullable=True)
     payment_reference = Column(String(255), nullable=True)
     error_message = Column(Text, nullable=True)

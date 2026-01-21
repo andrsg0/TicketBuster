@@ -11,7 +11,12 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },
-  "keywords": ["api", "gateway", "express", "ticketbuster"],
+  "keywords": [
+    "api",
+    "gateway",
+    "express",
+    "ticketbuster"
+  ],
   "author": "TicketBuster Team",
   "license": "MIT",
   "dependencies": {
@@ -21,6 +26,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "*",
     "jwks-rsa": "*",
+    "pg": "^8.17.2",
     "uuid": "*"
   }
 }

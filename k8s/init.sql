@@ -14,12 +14,17 @@ SET search_path TO db_catalog;
 
 -- Create ENUM types for catalog schema
 CREATE TYPE db_catalog.seat_status AS ENUM ('AVAILABLE', 'LOCKED', 'SOLD');
+CREATE TYPE db_catalog.event_category AS ENUM ('CONCERT', 'THEATER', 'SPORTS', 'CONFERENCE', 'FESTIVAL', 'OTHER');
 
 -- Events Table
 CREATE TABLE IF NOT EXISTS db_catalog.events (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
+    category db_catalog.event_category NOT NULL DEFAULT 'OTHER',
+    venue VARCHAR(255) NOT NULL,
+    venue_address TEXT,
+    image_url TEXT,
     date TIMESTAMP NOT NULL,
     price DECIMAL(10, 2) NOT NULL CHECK (price >= 0),
     total_seats INTEGER NOT NULL CHECK (total_seats > 0),
@@ -35,18 +40,21 @@ CREATE INDEX idx_events_title ON db_catalog.events(title);
 CREATE TABLE IF NOT EXISTS db_catalog.seats (
     id SERIAL PRIMARY KEY,
     event_id INTEGER NOT NULL REFERENCES db_catalog.events(id) ON DELETE CASCADE,
-    seat_number VARCHAR(50) NOT NULL,
+    section VARCHAR(50) NOT NULL,
+    row VARCHAR(10) NOT NULL,
+    seat_number INTEGER NOT NULL,
     status db_catalog.seat_status NOT NULL DEFAULT 'AVAILABLE',
     locked_at TIMESTAMP,
     locked_by_user_id UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_seat_per_event UNIQUE (event_id, seat_number)
+    CONSTRAINT unique_seat_per_event UNIQUE (event_id, section, row, seat_number)
 );
 
 -- Create indexes for seat queries
 CREATE INDEX idx_seats_event_id ON db_catalog.seats(event_id);
 CREATE INDEX idx_seats_status ON db_catalog.seats(status);
+CREATE INDEX idx_seats_section ON db_catalog.seats(event_id, section);
 CREATE INDEX idx_seats_locked_by ON db_catalog.seats(locked_by_user_id) WHERE locked_by_user_id IS NOT NULL;
 
 -- Function to automatically unlock expired locks (seats locked for more than 10 minutes)
@@ -87,10 +95,14 @@ CREATE TRIGGER seats_update_timestamp
 -- ================================================
 
 -- Insert sample events
-INSERT INTO db_catalog.events (title, description, date, price, total_seats) VALUES
+INSERT INTO db_catalog.events (title, description, category, venue, venue_address, image_url, date, price, total_seats) VALUES
 (
     'Rock Festival 2026',
     'El festival de rock más grande del año con bandas internacionales. Incluye acceso a tres escenarios y zona VIP disponible.',
+    'FESTIVAL',
+    'Estadio Nacional',
+    'Av. José Díaz s/n, Lima',
+    'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?q=80&w=800&auto=format&fit=crop',
     '2026-06-15 19:00:00',
     89.99,
     5000
@@ -98,6 +110,10 @@ INSERT INTO db_catalog.events (title, description, date, price, total_seats) VAL
 (
     'Teatro Musical: El Fantasma de la Ópera',
     'Presentación exclusiva del clásico musical de Broadway. Una experiencia inolvidable con efectos especiales y orquesta en vivo.',
+    'THEATER',
+    'Gran Teatro Nacional',
+    'Av. Javier Prado Este 2225, San Borja',
+    'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?q=80&w=800&auto=format&fit=crop',
     '2026-03-20 20:30:00',
     125.50,
     800
@@ -105,44 +121,116 @@ INSERT INTO db_catalog.events (title, description, date, price, total_seats) VAL
 (
     'Conferencia Tech Summit 2026',
     'Cumbre tecnológica con speakers de empresas líderes como Google, Microsoft y Meta. Incluye networking y workshops.',
+    'CONFERENCE',
+    'Centro de Convenciones de Lima',
+    'Av. Javier Prado Este 4700, Surco',
+    'https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=800&auto=format&fit=crop',
     '2026-05-10 09:00:00',
     299.00,
     1500
+),
+(
+    'Coldplay: Music of the Spheres Tour',
+    'La banda británica regresa con su espectacular gira mundial. Luces, confeti y los mejores hits de su carrera.',
+    'CONCERT',
+    'Estadio Nacional',
+    'Av. José Díaz s/n, Lima',
+    'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?q=80&w=800&auto=format&fit=crop',
+    '2026-04-22 20:00:00',
+    199.99,
+    45000
+),
+(
+    'Final Copa Libertadores 2026',
+    'La gran final del torneo más importante de Sudamérica. Vive la pasión del fútbol en vivo.',
+    'SPORTS',
+    'Estadio Monumental',
+    'Av. Javier Prado Este 7000, Ate',
+    'https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800&auto=format&fit=crop',
+    '2026-11-23 17:00:00',
+    350.00,
+    80000
+),
+(
+    'Stand Up Comedy: Noche de Risas',
+    'Los mejores comediantes del país en una noche inolvidable de humor y entretenimiento.',
+    'OTHER',
+    'Teatro Pirandello',
+    'Av. Comandante Espinar 719, Miraflores',
+    'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?q=80&w=800&auto=format&fit=crop',
+    '2026-02-14 21:00:00',
+    45.00,
+    300
 );
 
--- Insert sample seats for Event 1 (Rock Festival)
-INSERT INTO db_catalog.seats (event_id, seat_number, status) 
+-- Insert sample seats for Event 1 (Rock Festival) - Zona General con filas A-J, 10 asientos por fila
+INSERT INTO db_catalog.seats (event_id, section, row, seat_number, status)
 SELECT 
     1,
-    'SECT-A-' || LPAD(generate_series::text, 4, '0'),
+    'GENERAL',
+    chr(65 + ((gs - 1) / 10)),  -- A, B, C, D, E, F, G, H, I, J
+    ((gs - 1) % 10) + 1,         -- 1-10
     'AVAILABLE'
-FROM generate_series(1, 100);
+FROM generate_series(1, 100) AS gs;
 
-INSERT INTO db_catalog.seats (event_id, seat_number, status) 
+-- Insert VIP seats for Event 1 - Zona VIP con filas A-D, 10 asientos por fila
+INSERT INTO db_catalog.seats (event_id, section, row, seat_number, status)
 SELECT 
     1,
-    'SECT-B-' || LPAD(generate_series::text, 4, '0'),
+    'VIP',
+    chr(65 + ((gs - 1) / 10)),  -- A, B, C, D
+    ((gs - 1) % 10) + 1,
     'AVAILABLE'
-FROM generate_series(1, 100);
+FROM generate_series(1, 40) AS gs;
 
--- Insert sample seats for Event 2 (Teatro Musical)
-INSERT INTO db_catalog.seats (event_id, seat_number, status) 
+-- Insert PREFERENCIAL seats for Event 1 - Filas A-E, 10 asientos por fila
+INSERT INTO db_catalog.seats (event_id, section, row, seat_number, status)
+SELECT 
+    1,
+    'PREFERENCIAL',
+    chr(65 + ((gs - 1) / 10)),
+    ((gs - 1) % 10) + 1,
+    'AVAILABLE'
+FROM generate_series(1, 50) AS gs;
+
+-- Insert sample seats for Event 2 (Teatro Musical) - PLATEA con filas A-F, 15 asientos por fila
+INSERT INTO db_catalog.seats (event_id, section, row, seat_number, status)
 SELECT 
     2,
-    'PLATEA-' || chr(65 + (generate_series - 1) / 20) || '-' || LPAD(((generate_series - 1) % 20 + 1)::text, 2, '0'),
+    'PLATEA',
+    chr(65 + ((gs - 1) / 15)),
+    ((gs - 1) % 15) + 1,
     'AVAILABLE'
-FROM generate_series(1, 100);
+FROM generate_series(1, 90) AS gs;
 
--- Insert some locked and sold seats for testing
+-- Insert MEZANINE seats for Event 2 - Filas A-C, 20 asientos por fila
+INSERT INTO db_catalog.seats (event_id, section, row, seat_number, status)
+SELECT 
+    2,
+    'MEZANINE',
+    chr(65 + ((gs - 1) / 20)),
+    ((gs - 1) % 20) + 1,
+    'AVAILABLE'
+FROM generate_series(1, 60) AS gs;
+
+-- Insert sample seats for Event 3 (Tech Summit) - GENERAL con filas A-H, 20 asientos por fila
+INSERT INTO db_catalog.seats (event_id, section, row, seat_number, status)
+SELECT 
+    3,
+    'GENERAL',
+    chr(65 + ((gs - 1) / 20)),
+    ((gs - 1) % 20) + 1,
+    'AVAILABLE'
+FROM generate_series(1, 160) AS gs;
+
+-- Mark some seats as SOLD for testing
 UPDATE db_catalog.seats 
-SET status = 'LOCKED', 
-    locked_at = CURRENT_TIMESTAMP, 
-    locked_by_user_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::uuid
-WHERE id IN (1, 2, 3);
+SET status = 'SOLD'
+WHERE event_id = 1 AND section = 'VIP' AND row = 'A' AND seat_number IN (3, 4, 5);
 
 UPDATE db_catalog.seats 
 SET status = 'SOLD'
-WHERE id IN (10, 11, 12, 13, 14);
+WHERE event_id = 2 AND section = 'PLATEA' AND row = 'A' AND seat_number IN (7, 8);
 
 -- ================================================
 -- SCHEMA: db_orders (Order Worker Service - Python)

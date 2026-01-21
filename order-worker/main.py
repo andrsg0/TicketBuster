@@ -20,6 +20,7 @@ import signal
 import sys
 import time
 import uuid
+import base64
 from datetime import datetime
 from typing import Optional
 
@@ -169,11 +170,15 @@ def process_order(message: OrderMessage) -> bool:
         # Step 4: Update order as completed
         processing_time_ms = int((time.time() - start_time) * 1000)
         
+        # Encode QR to base64
+        qr_base64 = base64.b64encode(qr_bytes).decode('utf-8')
+        
         with get_session() as session:
             order = session.query(Order).filter_by(order_uuid=order_uuid).first()
             if order:
                 order.status = 'COMPLETED'
                 order.qr_code_hash = qr_hash
+                order.qr_code_base64 = qr_base64
                 order.completed_at = datetime.utcnow()
                 order.updated_at = datetime.utcnow()
         

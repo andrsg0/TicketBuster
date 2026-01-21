@@ -121,13 +121,19 @@ class RabbitMQConnection:
             )
             logger.info(f"Queue {settings.orders_queue} already exists")
         except pika.exceptions.ChannelClosedByBroker:
-            # Queue doesn't exist, create it with full arguments
-            self._connection = None
-            self.connect()  # Reconnect to get new channel
-            self._channel.queue_declare(
-                queue=settings.orders_queue,
-                durable=True
-            )
+            # Queue doesn't exist, need to recreate channel and declare queue
+            logger.info(f"Queue {settings.orders_queue} doesn't exist, creating it...")
+            # Recreate channel (connection should still be open)
+            if self._connection and self._connection.is_open:
+                self._channel = self._connection.channel()
+                self._channel.basic_qos(prefetch_count=settings.prefetch_count)
+                self._channel.queue_declare(
+                    queue=settings.orders_queue,
+                    durable=True
+                )
+                logger.info(f"Queue {settings.orders_queue} created")
+            else:
+                raise Exception("Connection lost while declaring queues")
         
         # Dead letter queue for orders
         self._channel.queue_declare(

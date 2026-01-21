@@ -34,9 +34,9 @@ ticket-buster/
 - Node.js >= 22.x (LTS)
 - Python >= 3.13
 - Docker & Docker Compose v2
-- kubectl (para K8s)
+- Git Bash (Windows) o terminal Bash (Linux/macOS)
 
-### Instalación
+### Instalación Rápida
 
 ```bash
 # Instalar dependencias de todos los servicios Node.js
@@ -49,7 +49,39 @@ cd ../frontend && npm install
 cd ../order-worker && pip install -r requirements.txt
 ```
 
-### Ejecución con Docker Compose
+### 🚀 Iniciar Todo (Recomendado)
+
+```bash
+# Iniciar toda la aplicación (infraestructura + servicios + frontend)
+./scripts/start-all.sh
+
+# Ver estado de los servicios
+./scripts/status.sh
+
+# Detener microservicios (mantiene Docker)
+./scripts/stop-all.sh
+
+# Detener TODO incluyendo Docker
+./scripts/stop-all.sh --all
+```
+
+**Inicio rápido alternativo** (frontend en primer plano):
+```bash
+./scripts/quick-start.sh
+```
+
+### URLs después de iniciar
+
+| Servicio | URL |
+|----------|-----|
+| 🌐 Frontend | http://localhost:5173 |
+| 🚪 API Gateway | http://localhost:8000 |
+| 📚 Catalog Service | http://localhost:3000 |
+| 🔔 Notifications | http://localhost:4000 |
+| 🐰 RabbitMQ UI | http://localhost:15672 (guest/guest) |
+| 🐘 PostgreSQL | localhost:15433 (admin/admin123) |
+
+### Ejecución con Docker Compose (Solo Infraestructura)
 
 ```bash
 # Levantar todos los servicios en modo desarrollo
