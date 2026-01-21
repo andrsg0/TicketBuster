@@ -8,7 +8,7 @@ services:
   # PostgreSQL Database (Database per Service Pattern)
   # ================================================
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     container_name: ticketbuster-postgres
     restart: unless-stopped
     ports:
@@ -35,7 +35,7 @@ services:
   # RabbitMQ Message Broker
   # ================================================
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:4.0-management-alpine
     container_name: ticketbuster-rabbitmq
     restart: unless-stopped
     ports:
@@ -60,29 +60,26 @@ services:
   # Keycloak Identity & Access Management
   # ================================================
   keycloak:
-    image: quay.io/keycloak/keycloak:24.0
+    image: quay.io/keycloak/keycloak:26.0
     container_name: ticketbuster-keycloak
     restart: unless-stopped
     command: start-dev
     ports:
       - "${KEYCLOAK_PORT:-8080}:8080"
+      - "9000:9000"  # Management port for health/metrics
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      KC_HEALTH_ENABLED: true
-      KC_METRICS_ENABLED: true
-      # Development mode - uses H2 database internally
-      KC_DB: h2-file
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_PORT: "9000"
+      # Development mode - uses H2 database file (Keycloak 24.0+)
+      KC_DB: dev-file
     volumes:
       - keycloak_data:/opt/keycloak/data
     networks:
       - ticketbuster-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
+    # Health endpoint on management port: http://localhost:9000/health/ready
 
   # ================================================
   # Application Services (Coming in Etapa 3)

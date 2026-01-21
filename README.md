@@ -31,9 +31,9 @@ ticket-buster/
 
 ### Requisitos previos
 
-- Node.js >= 18.x
-- Python >= 3.11
-- Docker & Docker Compose
+- Node.js >= 22.x (LTS)
+- Python >= 3.13
+- Docker & Docker Compose v2
 - kubectl (para K8s)
 
 ### Instalación

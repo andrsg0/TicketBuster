@@ -4,6 +4,9 @@
   "description": "API Gateway for TicketBuster microservices",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js"
@@ -12,10 +15,11 @@
   "author": "TicketBuster Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.21.0",
+    "express": "^5.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.0",
+    "dotenv": "^16.4.7",
     "helmet": "^8.0.0",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "compression": "^1.7.5"
   }
 }
