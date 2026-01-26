@@ -2,47 +2,70 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { createMultipleOrders, getEvent } from '../services/api';
 import { useCart } from '../context/CartContext';
+import { saveOfflineOrder, getCachedEvent } from '../services/offlineStorage';
+import useOnlineStatus from '../hooks/useOnlineStatus';
 
 export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { items, clearEvent } = useCart();
+  const { isOnline } = useOnlineStatus();
   
-  console.log('[CheckoutPage] Render - Event ID:', id);
+  console.log('[CheckoutPage] Render - Event ID:', id, 'isOnline:', isOnline);
   
   const [event, setEvent] = useState(null);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
+  const [isOfflinePurchase, setIsOfflinePurchase] = useState(false);
 
   useEffect(() => {
     console.log('[CheckoutPage] useEffect - Montado, id:', id);
-    // Recuperar datos de sessionStorage
-    const storedSeats = sessionStorage.getItem('selectedSeats');
-    const storedEvent = sessionStorage.getItem('eventData');
     
-    if (!storedSeats || !storedEvent) {
-      const eventSeats = items.filter(s => String(s.eventId) === String(id));
-      if (eventSeats.length === 0) {
-        navigate(`/event/${id}`);
-        return;
-      }
-      setSelectedSeats(eventSeats.map(s => ({
-        id: s.id,
-        section: s.section,
-        row: s.row,
-        seat_number: s.seat_number,
-      })));
+    const loadData = async () => {
+      // Recuperar datos de sessionStorage
+      const storedSeats = sessionStorage.getItem('selectedSeats');
+      const storedEvent = sessionStorage.getItem('eventData');
+      
+      if (!storedSeats || !storedEvent) {
+        const eventSeats = items.filter(s => String(s.eventId) === String(id));
+        if (eventSeats.length === 0) {
+          navigate(`/event/${id}`);
+          return;
+        }
+        setSelectedSeats(eventSeats.map(s => ({
+          id: s.id,
+          section: s.section,
+          row: s.row,
+          seat_number: s.seat_number,
+        })));
 
-      // Intentar recuperar datos del evento para mostrar resumen
-      getEvent(id)
-        .then(data => setEvent(data.event || data))
-        .catch(() => {});
-    } else {
-      setSelectedSeats(JSON.parse(storedSeats));
-      setEvent(JSON.parse(storedEvent));
-    }
+        // Intentar recuperar datos del evento
+        try {
+          if (navigator.onLine) {
+            const data = await getEvent(id);
+            setEvent(data.event || data);
+          } else {
+            const cached = await getCachedEvent(parseInt(id));
+            if (cached) {
+              setEvent(cached.event || cached);
+            }
+          }
+        } catch (err) {
+          // Fallback a cache
+          const cached = await getCachedEvent(parseInt(id));
+          if (cached) {
+            setEvent(cached.event || cached);
+          }
+        }
+      } else {
+        setSelectedSeats(JSON.parse(storedSeats));
+        setEvent(JSON.parse(storedEvent));
+      }
+    };
+    
+    loadData();
   }, [id, navigate, items]);
 
   const totalPrice = selectedSeats.length * (parseFloat(event?.price) || 0);
@@ -57,8 +80,55 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
     if (processing) return;
     
     setProcessing(true);
+    
     try {
       const seatIds = selectedSeats.map(s => s.id);
+      
+      // Verificar si estamos offline
+      if (!navigator.onLine) {
+        // Guardar cada asiento como orden offline
+        const offlineResults = [];
+        for (const seat of selectedSeats) {
+          const localId = await saveOfflineOrder({
+            event_id: event.id,
+            seat_id: seat.id,
+            price: parseFloat(event.price),
+            eventId: event.id,
+            seatId: seat.id,
+            section: seat.section,
+            row: seat.row,
+            seat_number: seat.seat_number,
+            eventTitle: event.title,
+            eventVenue: event.venue,
+            eventDate: event.date,
+            eventImage: event.image_url
+          });
+          offlineResults.push({ localId, seat });
+        }
+        
+        setOrderResult({ 
+          successful: offlineResults, 
+          failed: [],
+          total: offlineResults.length 
+        });
+        setIsOfflinePurchase(true);
+        setSuccess(true);
+        
+        // Limpiar sessionStorage y carrito
+        sessionStorage.removeItem('selectedSeats');
+        sessionStorage.removeItem('eventData');
+        if (event) clearEvent(event.id);
+        
+        onToast?.({
+          type: 'success',
+          message: `¡Compra guardada offline! Se procesará al recuperar conexión.`
+        });
+        
+        console.log('[CheckoutPage] Compra guardada offline:', offlineResults.length, 'asientos');
+        return;
+      }
+      
+      // Modo online: enviar al servidor
       const result = await createMultipleOrders(event.id, seatIds, parseFloat(event.price));
       
       setOrderResult(result);
@@ -84,6 +154,51 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
       }
     } catch (err) {
       console.error('Error en compra:', err);
+      
+      // Si falla por red, intentar guardar offline
+      if (err.name === 'TypeError' || !navigator.onLine) {
+        try {
+          const offlineResults = [];
+          for (const seat of selectedSeats) {
+            const localId = await saveOfflineOrder({
+              event_id: event.id,
+              seat_id: seat.id,
+              price: parseFloat(event.price),
+              eventId: event.id,
+              seatId: seat.id,
+              section: seat.section,
+              row: seat.row,
+              seat_number: seat.seat_number,
+              eventTitle: event.title,
+              eventVenue: event.venue,
+              eventDate: event.date,
+              eventImage: event.image_url
+            });
+            offlineResults.push({ localId, seat });
+          }
+          
+          setOrderResult({ 
+            successful: offlineResults, 
+            failed: [],
+            total: offlineResults.length 
+          });
+          setIsOfflinePurchase(true);
+          setSuccess(true);
+          
+          sessionStorage.removeItem('selectedSeats');
+          sessionStorage.removeItem('eventData');
+          if (event) clearEvent(event.id);
+          
+          onToast?.({
+            type: 'success',
+            message: `¡Compra guardada offline! Se procesará al recuperar conexión.`
+          });
+          return;
+        } catch (offlineErr) {
+          console.error('Error guardando offline:', offlineErr);
+        }
+      }
+      
       onToast?.({
         type: 'error',
         message: err.message || 'Error procesando la compra'
@@ -119,13 +234,36 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-xl max-w-md w-full overflow-hidden">
           {/* Header de éxito */}
-          <div className="bg-gradient-to-br from-green-400 to-green-600 p-8 text-center">
+          <div className={`p-8 text-center ${isOfflinePurchase 
+            ? 'bg-gradient-to-br from-amber-400 to-amber-600' 
+            : 'bg-gradient-to-br from-green-400 to-green-600'}`}>
             <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <span className="material-symbols-outlined text-5xl text-green-500">check_circle</span>
+              <span className={`material-symbols-outlined text-5xl ${isOfflinePurchase ? 'text-amber-500' : 'text-green-500'}`}>
+                {isOfflinePurchase ? 'cloud_off' : 'check_circle'}
+              </span>
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">¡Compra Exitosa!</h1>
-            <p className="text-green-100">Tu reservación ha sido confirmada</p>
+            <h1 className="text-2xl font-bold text-white mb-2">
+              {isOfflinePurchase ? '¡Compra Guardada!' : '¡Compra Exitosa!'}
+            </h1>
+            <p className={isOfflinePurchase ? 'text-amber-100' : 'text-green-100'}>
+              {isOfflinePurchase 
+                ? 'Se procesará al recuperar conexión' 
+                : 'Tu reservación ha sido confirmada'}
+            </p>
           </div>
+
+          {/* Banner offline */}
+          {isOfflinePurchase && (
+            <div className="bg-amber-50 border-b border-amber-200 p-4">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-amber-600">info</span>
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium mb-1">Modo Offline</p>
+                  <p>Tu compra se guardó localmente. Cuando recuperes la conexión a internet, se sincronizará automáticamente con el servidor.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Detalles */}
           <div className="p-6">
@@ -139,16 +277,28 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-sm text-gray-500 mb-2">Asientos reservados:</p>
+                <p className="text-sm text-gray-500 mb-2">
+                  {isOfflinePurchase ? 'Asientos a reservar:' : 'Asientos reservados:'}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {orderResult?.successful.map((order, idx) => (
-                    <span 
-                      key={idx}
-                      className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium"
-                    >
-                      {selectedSeats[idx]?.section} {selectedSeats[idx]?.row}-{selectedSeats[idx]?.seat_number}
-                    </span>
-                  ))}
+                  {isOfflinePurchase 
+                    ? orderResult?.successful.map((item, idx) => (
+                        <span 
+                          key={idx}
+                          className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm font-medium"
+                        >
+                          {item.seat.section} {item.seat.row}-{item.seat.seat_number}
+                        </span>
+                      ))
+                    : orderResult?.successful.map((order, idx) => (
+                        <span 
+                          key={idx}
+                          className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium"
+                        >
+                          {selectedSeats[idx]?.section} {selectedSeats[idx]?.row}-{selectedSeats[idx]?.seat_number}
+                        </span>
+                      ))
+                  }
                 </div>
               </div>
 
@@ -170,14 +320,16 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
             </div>
 
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-6">
-              <span className="text-gray-600">Total pagado</span>
+              <span className="text-gray-600">{isOfflinePurchase ? 'Total a pagar' : 'Total pagado'}</span>
               <span className="text-2xl font-bold text-gray-800">
                 ${(orderResult?.successful.length * parseFloat(event.price)).toFixed(2)}
               </span>
             </div>
 
             <p className="text-center text-sm text-gray-500 mb-6">
-              Recibirás un correo con los detalles de tu compra y el código QR para ingresar al evento.
+              {isOfflinePurchase 
+                ? 'Tu compra se sincronizará automáticamente cuando recuperes la conexión a internet.'
+                : 'Recibirás un correo con los detalles de tu compra y el código QR para ingresar al evento.'}
             </p>
 
             <Link
@@ -195,6 +347,16 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
   // Pantalla de confirmación
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Offline Banner */}
+      {!isOnline && (
+        <div className="bg-amber-100 border-b border-amber-300 py-3 px-4">
+          <div className="container mx-auto flex items-center gap-2 text-sm text-amber-800">
+            <span className="material-symbols-outlined">cloud_off</span>
+            <span><strong>Modo Offline:</strong> Tu compra se guardará localmente y se procesará al recuperar conexión.</span>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4">
@@ -207,7 +369,10 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
             </Link>
             <div className="ml-3">
               <h1 className="font-bold text-gray-800">Confirmar Compra</h1>
-              <p className="text-sm text-gray-500">Revisa tu selección</p>
+              <p className="text-sm text-gray-500">
+                Revisa tu selección
+                {!isOnline && <span className="ml-2 px-2 py-0.5 bg-amber-200 text-amber-800 rounded text-xs">Offline</span>}
+              </p>
             </div>
           </div>
         </div>
@@ -277,12 +442,20 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
           </div>
 
           {/* Nota informativa */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+          <div className={`rounded-xl p-4 mb-6 ${isOnline ? 'bg-amber-50 border border-amber-200' : 'bg-blue-50 border border-blue-200'}`}>
             <div className="flex gap-3">
-              <span className="material-symbols-outlined text-amber-600">info</span>
-              <div className="text-sm text-amber-800">
-                <p className="font-medium mb-1">Información importante</p>
-                <p>Los asientos están reservados temporalmente. Completa la compra en los próximos 5 minutos para asegurar tu lugar.</p>
+              <span className={`material-symbols-outlined ${isOnline ? 'text-amber-600' : 'text-blue-600'}`}>
+                {isOnline ? 'info' : 'cloud_off'}
+              </span>
+              <div className={`text-sm ${isOnline ? 'text-amber-800' : 'text-blue-800'}`}>
+                <p className="font-medium mb-1">
+                  {isOnline ? 'Información importante' : 'Compra Offline'}
+                </p>
+                <p>
+                  {isOnline 
+                    ? 'Los asientos están reservados temporalmente. Completa la compra en los próximos 5 minutos para asegurar tu lugar.'
+                    : 'Estás sin conexión. Tu compra se guardará localmente y se sincronizará automáticamente cuando recuperes internet.'}
+                </p>
               </div>
             </div>
           </div>
@@ -306,12 +479,12 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Procesando...
+                {isOnline ? 'Procesando...' : 'Guardando...'}
               </>
             ) : (
               <>
-                <span className="material-symbols-outlined">lock</span>
-                Confirmar y Pagar ${totalPrice.toFixed(2)}
+                <span className="material-symbols-outlined">{isOnline ? 'lock' : 'cloud_off'}</span>
+                {isOnline ? `Confirmar y Pagar $${totalPrice.toFixed(2)}` : `Guardar Compra Offline $${totalPrice.toFixed(2)}`}
               </>
             )}
           </button>

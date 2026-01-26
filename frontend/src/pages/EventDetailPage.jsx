@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getEvent } from '../services/api';
-import { getCachedEvent } from '../services/offlineStorage';
+import { getCachedEvent, cacheEventWithSeats } from '../services/offlineStorage';
 
 // Mapeo de categorías a iconos y colores
 const categoryConfig = {
@@ -29,26 +29,48 @@ export default function EventDetailPage() {
 
       try {
         if (navigator.onLine) {
+          console.log('[EventDetailPage] 🌐 Online - fetching event', id);
           const data = await getEvent(id);
-          setEvent(data.event || data);
-          setSeats(data.seats || []);
+          const eventData = data.event || data;
+          const seatsData = data.seats || [];
+          console.log('[EventDetailPage] 📦 Datos recibidos:', { 
+            eventId: eventData.id, 
+            seatsCount: seatsData.length 
+          });
+          
+          setEvent(eventData);
+          setSeats(seatsData);
           setFromCache(false);
+          
+          // Cachear evento con asientos para modo offline
+          try {
+            await cacheEventWithSeats({ event: eventData, seats: seatsData });
+            console.log('[EventDetailPage] ✅ Evento cacheado con', seatsData.length, 'asientos');
+          } catch (cacheError) {
+            console.error('[EventDetailPage] ❌ Error cacheando:', cacheError);
+          }
         } else {
           const cached = await getCachedEvent(parseInt(id));
           if (cached) {
-            setEvent(cached.event || cached);
-            setSeats(cached.seats || []);
+            // El evento cacheado puede tener la estructura { event, seats } o ser el evento directamente
+            const eventData = cached.event || cached;
+            const seatsData = cached.seats || [];
+            setEvent(eventData);
+            setSeats(seatsData);
             setFromCache(true);
+            console.log('[EventDetailPage] Cargado desde cache:', seatsData.length, 'asientos');
           } else {
-            setError('Evento no disponible offline');
+            setError('Evento no disponible offline. Visita este evento cuando tengas conexión para cachearlo.');
           }
         }
       } catch (err) {
         console.error('Error loading event:', err);
         const cached = await getCachedEvent(parseInt(id));
         if (cached) {
-          setEvent(cached.event || cached);
-          setSeats(cached.seats || []);
+          const eventData = cached.event || cached;
+          const seatsData = cached.seats || [];
+          setEvent(eventData);
+          setSeats(seatsData);
           setFromCache(true);
         } else {
           setError('Error cargando el evento');

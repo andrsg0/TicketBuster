@@ -88,12 +88,11 @@ if ($namespaceExists -match $NAMESPACE) {
     kubectl apply -f "$ROOT_DIR\k8s\namespace.yaml" 2>&1 | Out-Null
 }
 
-# Infrastructure
-Write-Host "  Desplegando PostgreSQL, RabbitMQ y Keycloak..." -ForegroundColor Blue
+# Infrastructure (primero PostgreSQL y RabbitMQ, luego Keycloak)
+Write-Host "  Desplegando PostgreSQL y RabbitMQ..." -ForegroundColor Blue
 kubectl apply -f "$ROOT_DIR\k8s\infrastructure.yaml" 2>&1 | Out-Null
-kubectl apply -f "$ROOT_DIR\k8s\keycloak.yaml" 2>&1 | Out-Null
 
-# Esperar a que PostgreSQL y RabbitMQ esten listos
+# Esperar a que PostgreSQL esté listo ANTES de desplegar Keycloak
 Write-Host "  Esperando a que PostgreSQL este listo..." -ForegroundColor DarkGray
 $maxWait = 60
 $waited = 0
@@ -109,6 +108,16 @@ while ($waited -lt $maxWait) {
     Start-Sleep -Seconds 2
     $waited += 2
 }
+
+# Crear schema de Keycloak en PostgreSQL (necesario para persistencia)
+Write-Host "  Creando schema de Keycloak en PostgreSQL..." -ForegroundColor DarkGray
+$pgPod = kubectl get pods -n $NAMESPACE -l app=postgres -o jsonpath='{.items[0].metadata.name}' 2>&1
+kubectl exec -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -c "CREATE SCHEMA IF NOT EXISTS keycloak;" 2>&1 | Out-Null
+Write-Host "  [OK] Schema keycloak creado" -ForegroundColor Green
+
+# Ahora desplegar Keycloak (que usará PostgreSQL)
+Write-Host "  Desplegando Keycloak..." -ForegroundColor Blue
+kubectl apply -f "$ROOT_DIR\k8s\keycloak.yaml" 2>&1 | Out-Null
 
 Write-Host "  Esperando a que RabbitMQ este listo..." -ForegroundColor DarkGray
 $waited = 0

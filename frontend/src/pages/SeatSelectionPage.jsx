@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getEvent, lockSeat, unlockSeat } from '../services/api';
 import { useCart } from '../context/CartContext';
+import { getCachedEvent, cacheEventWithSeats } from '../services/offlineStorage';
+import useOnlineStatus from '../hooks/useOnlineStatus';
 
 // Colores para secciones
 const sectionColors = {
@@ -20,14 +22,16 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
   const { id } = useParams();
   const navigate = useNavigate();
   const { upsertEventSeats, items } = useCart();
+  const { isOnline } = useOnlineStatus();
   
-  console.log('[SeatSelectionPage] Render - Event ID:', id);
+  console.log('[SeatSelectionPage] Render - Event ID:', id, 'isOnline:', isOnline);
   const [event, setEvent] = useState(null);
   const [seats, setSeats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [activeSection, setActiveSection] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
   
   // Estados de operaciones en curso por asiento (para feedback visual)
   const [seatOperations, setSeatOperations] = useState({}); // { seatId: 'locking' | 'unlocking' }
@@ -44,18 +48,74 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
     const fetchEvent = async () => {
       setLoading(true);
       try {
-        const data = await getEvent(id);
-        setEvent(data.event || data);
-        setSeats(data.seats || []);
-        // Set first section as active
-        if (data.seats?.length > 0) {
-          const sections = [...new Set(data.seats.map(s => s.section))];
-          setActiveSection(sections[0]);
+        if (navigator.onLine) {
+          // Online: obtener datos del servidor
+          const data = await getEvent(id);
+          const eventData = data.event || data;
+          const seatsData = data.seats || [];
+          setEvent(eventData);
+          setSeats(seatsData);
+          setIsOfflineMode(false);
+          
+          // Cachear para uso offline
+          await cacheEventWithSeats({ event: eventData, seats: seatsData });
+          
+          // Set first section as active
+          if (seatsData.length > 0) {
+            const sections = [...new Set(seatsData.map(s => s.section))];
+            setActiveSection(sections[0]);
+          }
+        } else {
+          // Offline: cargar desde cache
+          const cached = await getCachedEvent(parseInt(id));
+          if (cached) {
+            const eventData = cached.event || cached;
+            const seatsData = cached.seats || [];
+            setEvent(eventData);
+            setSeats(seatsData);
+            setIsOfflineMode(true);
+            console.log('[SeatSelectionPage] Modo offline - cargado desde cache:', seatsData.length, 'asientos');
+            
+            if (seatsData.length > 0) {
+              const sections = [...new Set(seatsData.map(s => s.section))];
+              setActiveSection(sections[0]);
+            }
+            
+            onToast?.({ 
+              type: 'info', 
+              message: 'Modo offline: los asientos se reservarán al recuperar conexión' 
+            });
+          } else {
+            onToast?.({ type: 'error', message: 'Evento no disponible offline' });
+            navigate(`/event/${id}`);
+          }
         }
       } catch (err) {
         console.error('Error loading event:', err);
-        onToast?.({ type: 'error', message: 'Error cargando el evento' });
-        navigate(`/event/${id}`);
+        
+        // Intentar cargar desde cache en caso de error
+        try {
+          const cached = await getCachedEvent(parseInt(id));
+          if (cached) {
+            const eventData = cached.event || cached;
+            const seatsData = cached.seats || [];
+            setEvent(eventData);
+            setSeats(seatsData);
+            setIsOfflineMode(true);
+            console.log('[SeatSelectionPage] Fallback a cache:', seatsData.length, 'asientos');
+            
+            if (seatsData.length > 0) {
+              const sections = [...new Set(seatsData.map(s => s.section))];
+              setActiveSection(sections[0]);
+            }
+          } else {
+            onToast?.({ type: 'error', message: 'Error cargando el evento' });
+            navigate(`/event/${id}`);
+          }
+        } catch (cacheErr) {
+          onToast?.({ type: 'error', message: 'Error cargando el evento' });
+          navigate(`/event/${id}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -63,19 +123,21 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
 
     fetchEvent();
     
-    // Cleanup: unlock all selected seats on unmount
+    // Cleanup: unlock all selected seats on unmount (solo si estamos online)
     return () => {
       console.log('[SeatSelectionPage] useEffect[id] - CLEANUP/UNMOUNT');
       // Cancelar pending locks
       Object.values(pendingLocksRef.current).forEach(controller => {
         controller?.abort();
       });
-      // Unlock seats que fueron confirmados con el servidor
-      Object.entries(lockTrackingRef.current).forEach(([seatId, data]) => {
-        if (data.confirmed) {
-          unlockSeat(id, parseInt(seatId)).catch(() => {});
-        }
-      });
+      // Unlock seats que fueron confirmados con el servidor (solo si online)
+      if (navigator.onLine) {
+        Object.entries(lockTrackingRef.current).forEach(([seatId, data]) => {
+          if (data.confirmed) {
+            unlockSeat(id, parseInt(seatId)).catch(() => {});
+          }
+        });
+      }
     };
   }, [id, navigate, onToast]);
 
@@ -139,7 +201,7 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
 
   const sections = Object.keys(seatsBySection);
 
-  // Función para seleccionar asiento (con lock optimista)
+  // Función para seleccionar asiento (con lock optimista o offline)
   const selectSeat = useCallback(async (seat) => {
     const seatId = seat.id;
     
@@ -148,6 +210,14 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
     setSeats(prev => prev.map(s => 
       s.id === seatId ? { ...s, status: 'LOCKED' } : s
     ));
+    
+    // En modo offline, no hacemos lock en el servidor
+    if (!navigator.onLine || isOfflineMode) {
+      console.log('[SeatSelectionPage] Modo offline - asiento seleccionado localmente:', seatId);
+      lockTrackingRef.current[seatId] = { lockedAt: Date.now(), confirmed: false, offline: true };
+      return;
+    }
+    
     setSeatOperations(prev => ({ ...prev, [seatId]: 'locking' }));
     
     // Tracking: marcar como pendiente
@@ -198,7 +268,7 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
         return next;
       });
     }
-  }, [id, onToast]);
+  }, [id, onToast, isOfflineMode]);
 
   // Función para deseleccionar asiento (con unlock inteligente)
   const deselectSeat = useCallback(async (seat) => {
@@ -215,6 +285,12 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
     pendingLocksRef.current[seatId]?.abort();
     delete pendingLocksRef.current[seatId];
     delete lockTrackingRef.current[seatId];
+    
+    // En modo offline, no necesitamos unlock en el servidor
+    if (!navigator.onLine || isOfflineMode || tracking?.offline) {
+      console.log('[SeatSelectionPage] Modo offline - asiento deseleccionado localmente:', seatId);
+      return;
+    }
     
     // Verificar si estamos en grace period (lock no confirmado aún)
     const isInGracePeriod = tracking && !tracking.confirmed && 
@@ -244,7 +320,7 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
         return next;
       });
     }
-  }, [id]);
+  }, [id, isOfflineMode]);
 
   // Toggle unificado
   const toggleSeat = useCallback((seat) => {
@@ -313,6 +389,16 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
+      {/* Offline Banner */}
+      {isOfflineMode && (
+        <div className="bg-amber-100 border-b border-amber-300 py-2 px-4">
+          <div className="container mx-auto flex items-center gap-2 text-sm text-amber-800">
+            <span className="material-symbols-outlined">cloud_off</span>
+            <span><strong>Modo Offline:</strong> Tu compra se guardará localmente y se procesará al recuperar conexión.</span>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4">
@@ -323,9 +409,12 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
             >
               <span className="material-symbols-outlined">arrow_back</span>
             </Link>
-            <div className="ml-3">
+            <div className="ml-3 flex-1">
               <h1 className="font-bold text-gray-800 truncate">{event?.title}</h1>
-              <p className="text-sm text-gray-500">Selecciona tus asientos</p>
+              <p className="text-sm text-gray-500">
+                Selecciona tus asientos
+                {isOfflineMode && <span className="ml-2 px-2 py-0.5 bg-amber-200 text-amber-800 rounded text-xs">Offline</span>}
+              </p>
             </div>
           </div>
         </div>

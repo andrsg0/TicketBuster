@@ -143,21 +143,55 @@ export async function getPendingOrdersCount() {
 
 /**
  * Guarda eventos en caché local
+ * IMPORTANTE: No sobrescribe asientos si ya existen en cache
  * @param {Array} events - Lista de eventos
  */
 export async function cacheEvents(events) {
   const db = await getDB();
+  
+  // Primero obtenemos los eventos existentes para preservar los asientos
+  const existingEvents = await db.getAll(STORES.CACHED_EVENTS);
+  const existingSeatsMap = {};
+  existingEvents.forEach(e => {
+    if (e.seats && e.seats.length > 0) {
+      existingSeatsMap[e.id] = e.seats;
+    }
+  });
+  
   const tx = db.transaction(STORES.CACHED_EVENTS, 'readwrite');
   
   await Promise.all([
-    ...events.map(event => tx.store.put({
-      ...event,
-      cachedAt: new Date().toISOString()
-    })),
+    ...events.map(event => {
+      const eventToCache = {
+        ...event,
+        // Preservar asientos existentes si los hay
+        seats: existingSeatsMap[event.id] || event.seats || [],
+        cachedAt: new Date().toISOString()
+      };
+      return tx.store.put(eventToCache);
+    }),
     tx.done
   ]);
   
-  console.log(`[OfflineStorage] ${events.length} eventos cacheados`);
+  console.log(`[OfflineStorage] ${events.length} eventos cacheados (asientos preservados)`);
+}
+
+/**
+ * Guarda un evento completo con sus asientos para modo offline
+ * @param {Object} eventData - { event, seats }
+ */
+export async function cacheEventWithSeats(eventData) {
+  const db = await getDB();
+  
+  const eventToCache = {
+    id: eventData.event?.id || eventData.id,
+    ...eventData.event || eventData,
+    seats: eventData.seats || [],
+    cachedAt: new Date().toISOString()
+  };
+  
+  await db.put(STORES.CACHED_EVENTS, eventToCache);
+  console.log(`[OfflineStorage] Evento ${eventToCache.id} cacheado con ${eventToCache.seats?.length || 0} asientos`);
 }
 
 /**

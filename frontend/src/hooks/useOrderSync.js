@@ -51,7 +51,7 @@ export function useOrderSync({ onSyncSuccess, onSyncError, onSyncStart } = {}) {
       const response = await createOrder({
         event_id: order.event_id,
         seat_id: order.seat_id,
-        user_id: order.user_id
+        total_amount: order.price || order.total_amount || 0
       });
 
       await markOrderAsSynced(order.localId, response);
