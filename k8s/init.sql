@@ -12,9 +12,18 @@ CREATE SCHEMA IF NOT EXISTS db_catalog;
 
 SET search_path TO db_catalog;
 
--- Create ENUM types for catalog schema
-CREATE TYPE db_catalog.seat_status AS ENUM ('AVAILABLE', 'LOCKED', 'SOLD');
-CREATE TYPE db_catalog.event_category AS ENUM ('CONCERT', 'THEATER', 'SPORTS', 'CONFERENCE', 'FESTIVAL', 'OTHER');
+-- Create ENUM types for catalog schema (idempotent)
+DO $$ BEGIN
+    CREATE TYPE db_catalog.seat_status AS ENUM ('AVAILABLE', 'LOCKED', 'SOLD');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE db_catalog.event_category AS ENUM ('CONCERT', 'THEATER', 'SPORTS', 'CONFERENCE', 'FESTIVAL', 'OTHER');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Events Table
 CREATE TABLE IF NOT EXISTS db_catalog.events (
@@ -32,9 +41,9 @@ CREATE TABLE IF NOT EXISTS db_catalog.events (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create index for event queries
-CREATE INDEX idx_events_date ON db_catalog.events(date);
-CREATE INDEX idx_events_title ON db_catalog.events(title);
+-- Create index for event queries (idempotent)
+CREATE INDEX IF NOT EXISTS idx_events_date ON db_catalog.events(date);
+CREATE INDEX IF NOT EXISTS idx_events_title ON db_catalog.events(title);
 
 -- Seats Table
 CREATE TABLE IF NOT EXISTS db_catalog.seats (
@@ -51,11 +60,11 @@ CREATE TABLE IF NOT EXISTS db_catalog.seats (
     CONSTRAINT unique_seat_per_event UNIQUE (event_id, section, row, seat_number)
 );
 
--- Create indexes for seat queries
-CREATE INDEX idx_seats_event_id ON db_catalog.seats(event_id);
-CREATE INDEX idx_seats_status ON db_catalog.seats(status);
-CREATE INDEX idx_seats_section ON db_catalog.seats(event_id, section);
-CREATE INDEX idx_seats_locked_by ON db_catalog.seats(locked_by_user_id) WHERE locked_by_user_id IS NOT NULL;
+-- Create indexes for seat queries (idempotent)
+CREATE INDEX IF NOT EXISTS idx_seats_event_id ON db_catalog.seats(event_id);
+CREATE INDEX IF NOT EXISTS idx_seats_status ON db_catalog.seats(status);
+CREATE INDEX IF NOT EXISTS idx_seats_section ON db_catalog.seats(event_id, section);
+CREATE INDEX IF NOT EXISTS idx_seats_locked_by ON db_catalog.seats(locked_by_user_id) WHERE locked_by_user_id IS NOT NULL;
 
 -- Function to automatically unlock expired locks (seats locked for more than 10 minutes)
 CREATE OR REPLACE FUNCTION db_catalog.unlock_expired_seats()
@@ -80,11 +89,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS events_update_timestamp ON db_catalog.events;
 CREATE TRIGGER events_update_timestamp
     BEFORE UPDATE ON db_catalog.events
     FOR EACH ROW
     EXECUTE FUNCTION db_catalog.update_timestamp();
 
+DROP TRIGGER IF EXISTS seats_update_timestamp ON db_catalog.seats;
 CREATE TRIGGER seats_update_timestamp
     BEFORE UPDATE ON db_catalog.seats
     FOR EACH ROW
@@ -94,7 +105,7 @@ CREATE TRIGGER seats_update_timestamp
 -- SAMPLE DATA for db_catalog
 -- ================================================
 
--- Insert sample events
+-- Insert sample events (script checks if data exists before running)
 INSERT INTO db_catalog.events (title, description, category, venue, venue_address, image_url, date, price, total_seats) VALUES
 (
     'Rock Festival 2026',
@@ -468,8 +479,12 @@ CREATE SCHEMA IF NOT EXISTS db_orders;
 
 SET search_path TO db_orders;
 
--- Create ENUM types for orders schema
-CREATE TYPE db_orders.order_status AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED');
+-- Create ENUM types for orders schema (idempotent)
+DO $$ BEGIN
+    CREATE TYPE db_orders.order_status AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Orders Table
 CREATE TABLE IF NOT EXISTS db_orders.orders (
@@ -490,12 +505,12 @@ CREATE TABLE IF NOT EXISTS db_orders.orders (
     completed_at TIMESTAMP
 );
 
--- Create indexes for order queries
-CREATE INDEX idx_orders_uuid ON db_orders.orders(order_uuid);
-CREATE INDEX idx_orders_user_id ON db_orders.orders(user_id);
-CREATE INDEX idx_orders_status ON db_orders.orders(status);
-CREATE INDEX idx_orders_created_at ON db_orders.orders(created_at DESC);
-CREATE INDEX idx_orders_event_seat ON db_orders.orders(event_id, seat_id);
+-- Create indexes for order queries (idempotent)
+CREATE INDEX IF NOT EXISTS idx_orders_uuid ON db_orders.orders(order_uuid);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON db_orders.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON db_orders.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON db_orders.orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_event_seat ON db_orders.orders(event_id, seat_id);
 
 -- Order History Table (for audit trail)
 CREATE TABLE IF NOT EXISTS db_orders.order_history (
@@ -507,7 +522,7 @@ CREATE TABLE IF NOT EXISTS db_orders.order_history (
     notes TEXT
 );
 
-CREATE INDEX idx_order_history_order_id ON db_orders.order_history(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_history_order_id ON db_orders.order_history(order_id);
 
 -- Trigger to log status changes
 CREATE OR REPLACE FUNCTION db_orders.log_order_status_change()
@@ -521,12 +536,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS order_status_change_trigger ON db_orders.orders;
 CREATE TRIGGER order_status_change_trigger
     AFTER UPDATE ON db_orders.orders
     FOR EACH ROW
     EXECUTE FUNCTION db_orders.log_order_status_change();
 
 -- Trigger to update updated_at timestamp
+DROP TRIGGER IF EXISTS orders_update_timestamp ON db_orders.orders;
 CREATE TRIGGER orders_update_timestamp
     BEFORE UPDATE ON db_orders.orders
     FOR EACH ROW

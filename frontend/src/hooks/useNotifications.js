@@ -1,6 +1,7 @@
 /**
  * useNotifications Hook
  * Maneja la conexión Socket.io para notificaciones en tiempo real
+ * Integra con notificaciones push del navegador
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -10,6 +11,33 @@ const NOTIFICATION_SERVER = import.meta.env.VITE_NOTIFICATION_URL || 'http://loc
 
 // Flag para evitar spam de logs
 let connectionWarningShown = false;
+
+// Helper para mostrar notificación push
+function showPushNotification(title, options = {}) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+  
+  try {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then(registration => {
+        registration.showNotification(title, {
+          icon: '/logo192.svg',
+          badge: '/logo192.svg',
+          vibrate: [200, 100, 200],
+          ...options
+        });
+      });
+    } else {
+      new Notification(title, {
+        icon: '/logo192.svg',
+        ...options
+      });
+    }
+  } catch (e) {
+    console.warn('[Push] Error mostrando notificación:', e);
+  }
+}
 
 export function useNotifications(userId) {
   const [connected, setConnected] = useState(false);
@@ -47,12 +75,35 @@ export function useNotifications(userId) {
       console.log('[useNotifications] Actualización de orden recibida:', notification);
       setNotifications(prev => [notification, ...prev]);
       setLatestNotification(notification);
+      
+      // Disparar notificación push del navegador
+      if (notification.type === 'order.completed' || notification.status === 'completed') {
+        showPushNotification('✅ ¡Compra confirmada!', {
+          body: `Tu ticket está listo. Evento #${notification.event_id}, Asiento #${notification.seat_id}`,
+          tag: `order-${notification.order_uuid}`,
+          requireInteraction: true
+        });
+      } else if (notification.type === 'order.failed' || notification.status === 'failed') {
+        showPushNotification('❌ Error en la compra', {
+          body: notification.error || 'Hubo un problema procesando tu orden.',
+          tag: `order-failed-${notification.order_uuid}`,
+          requireInteraction: true
+        });
+      }
     });
 
     socket.on('notification', (notification) => {
       console.log('[useNotifications] Notificación recibida:', notification);
       setNotifications(prev => [notification, ...prev]);
       setLatestNotification(notification);
+      
+      // Notificación push genérica
+      if (notification.message) {
+        showPushNotification('🎫 TicketBuster', {
+          body: notification.message,
+          tag: `notification-${Date.now()}`
+        });
+      }
     });
 
     socket.on('disconnect', () => {

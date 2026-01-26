@@ -142,14 +142,20 @@ spec:
             - name: NOTIFICATION_URL
               value: "http://notification-service:4000"
             - name: DEV_MODE
-              value: "true"
-            # Keycloak Auth (usado cuando DEV_MODE=false)
+              value: "false"
+            # Keycloak Auth
             - name: KEYCLOAK_URL
               value: "http://keycloak:8080"
             - name: KEYCLOAK_REALM
               value: "ticketbuster"
             - name: KEYCLOAK_CLIENT_ID
               value: "ticketbuster-frontend"
+            # Issuer must match the token issuer (from browser perspective)
+            - name: KEYCLOAK_ISSUER
+              value: "http://localhost:9080/realms/ticketbuster"
+            # JWKS URI uses internal cluster URL
+            - name: KEYCLOAK_JWKS_URI
+              value: "http://keycloak:8080/realms/ticketbuster/protocol/openid-connect/certs"
             # PostgreSQL
             - name: POSTGRES_HOST
               value: "postgres"

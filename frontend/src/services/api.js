@@ -4,13 +4,13 @@
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.DEV;
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
 
 // Token mock para desarrollo (mismo UUID que en api-gateway/src/auth.js)
 const DEV_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMWIyYzNkNC1lNWY2LTc4OTAtYWJjZC1lZjEyMzQ1Njc4OTAiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJkZXZ1c2VyIiwiZW1haWwiOiJkZXZAdGlja2V0YnVzdGVyLmxvY2FsIn0.mock';
 
-// En K8s siempre usar DEV_TOKEN porque el gateway está en DEV_MODE
-let authToken = DEV_TOKEN;
+// Token de autenticación - usar DEV_TOKEN solo en modo desarrollo
+let authToken = DEV_MODE ? DEV_TOKEN : null;
 
 export function setAuthToken(token) {
   authToken = token || null;

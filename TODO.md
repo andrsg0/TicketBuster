@@ -5,26 +5,26 @@
 ## 🔐 Autenticación y Usuarios
 
 - [x] **Login con Keycloak** - Integrar autenticación real con Keycloak
-  - [ ] Configurar Keycloak en K8s
+  - [x] Configurar Keycloak en K8s
   - [x] Crear realm `ticketbuster`
   - [x] Configurar cliente para frontend (SPA)
   - [x] Implementar flujo OAuth2/OIDC en frontend
   - [x] Validar JWT real en API Gateway (quitar DEV_MODE)
 
-- [ ] **Cambiar de usuario** - Permitir logout y login con otro usuario
-  - [ ] Botón de logout en frontend
-  - [ ] Limpiar tokens y estado local
-  - [ ] Redirigir a página de login
+- [x] **Cambiar de usuario** - Permitir logout y login con otro usuario
+  - [x] Botón de logout en frontend
+  - [x] Limpiar tokens y estado local (via signoutRedirect)
+  - [x] Redirigir a página de login
 
-- [ ] **Registro de usuarios** - Permitir crear cuentas nuevas
-  - [ ] Formulario de registro en frontend
-  - [ ] Endpoint de registro en Keycloak
-  - [ ] Validación de email
+- [x] **Registro de usuarios** - Permitir crear cuentas nuevas
+  - [x] Keycloak maneja el formulario de registro
+  - [x] registrationAllowed=true en realm
+  - [x] Validación de email habilitada
 
-- [ ] **Perfil de usuario** - Ver y editar datos personales
+- [ ] **Perfil de usuario** - Ver y editar datos personales (opcional)
   - [ ] Página de perfil
   - [ ] Editar nombre, email, teléfono
-  - [ ] Cambiar contraseña
+  - [ ] Cambiar contraseña (Keycloak Account Console)
 
 ---
 
@@ -88,10 +88,10 @@
   - [ ] Descargar tickets anteriores
   - [ ] Ver estado de cada orden
 
-- [ ] **Notificaciones push**
-  - [ ] Solicitar permiso de notificaciones
-  - [ ] Notificar confirmación de compra
-  - [ ] Notificar recordatorio antes del evento
+- [x] **Notificaciones push** ✅
+  - [x] Solicitar permiso de notificaciones (NotificationPermissionBanner.jsx)
+  - [x] Notificar confirmación de compra (notifyOrderCompleted en usePushNotifications)
+  - [x] Notificar recordatorio antes del evento (notifyEventReminder en usePushNotifications)
 
 ---
 
@@ -145,16 +145,16 @@
 
 ## 🔔 Notificaciones en Tiempo Real
 
-- [ ] **WebSockets**
-  - [ ] Conectar frontend a notification-service
-  - [ ] Mostrar notificaciones en UI
-  - [ ] Reconexión automática
+- [x] **WebSockets**
+  - [x] Conectar frontend a notification-service (Socket.io)
+  - [x] Mostrar notificaciones en UI (Toast notifications)
+  - [x] Reconexión automática
 
-- [ ] **Tipos de notificaciones**
-  - [ ] Orden confirmada
-  - [ ] Orden fallida
-  - [ ] Asiento liberado (para waitlist)
-  - [ ] Recordatorio de evento
+- [x] **Tipos de notificaciones**
+  - [x] Orden confirmada (order.completed)
+  - [x] Orden fallida (order.failed)
+  - [ ] Asiento liberado (para waitlist) - opcional
+  - [ ] Recordatorio de evento - opcional
 
 ---
 

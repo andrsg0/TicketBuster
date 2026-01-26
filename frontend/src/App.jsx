@@ -8,6 +8,7 @@ import CartPage from './pages/CartPage';
 import CartCheckoutPage from './pages/CartCheckoutPage';
 import { CartProvider } from './context/CartContext';
 import { setAuthToken, clearAuthToken } from './services/api';
+import NotificationPermissionBanner from './components/NotificationPermissionBanner';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -21,8 +22,8 @@ import MyTicketsPage from './pages/MyTicketsPage';
 import useOrderSync from './hooks/useOrderSync';
 import useNotifications from './hooks/useNotifications';
 
-// DEV_MODE: Mock user for testing
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.DEV;
+// DEV_MODE: Mock user for testing (solo si VITE_DEV_MODE=true explícitamente)
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
 const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
 function App() {
@@ -119,21 +120,25 @@ function App() {
   const displayNotification = toast || latestNotification;
 
   return (
-    <Routes>
-      <Route 
-        path="/" 
-        element={
-          <CartProvider>
-            <Layout 
-              user={user}
-              onLogin={handleLogin}
-              onLogout={handleLogout}
-              notification={displayNotification}
-              onDismissNotification={handleDismissToast}
-            />
-          </CartProvider>
-        }
-      >
+    <>
+      {/* Banner para solicitar permisos de notificaciones push */}
+      {isAuthenticated && <NotificationPermissionBanner />}
+      
+      <Routes>
+        <Route 
+          path="/" 
+          element={
+            <CartProvider>
+              <Layout 
+                user={user}
+                onLogin={handleLogin}
+                onLogout={handleLogout}
+                notification={displayNotification}
+                onDismissNotification={handleDismissToast}
+              />
+            </CartProvider>
+          }
+        >
         <Route index element={<HomePage />} />
         <Route 
           path="event/:id" 
@@ -184,6 +189,7 @@ function App() {
         />
       </Route>
     </Routes>
+    </>
   );
 }
 
