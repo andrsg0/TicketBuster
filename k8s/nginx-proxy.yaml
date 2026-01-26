@@ -1,0 +1,180 @@
+# ============================================================================
+# Nginx Reverse Proxy - Unifica todos los servicios en un solo punto
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: ticketbuster
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        # Logs
+        access_log /dev/stdout;
+        error_log /dev/stderr;
+        
+        # Detectar protocolo real (Cloudflare pasa CF-Visitor)
+        map $http_cf_visitor $forwarded_proto {
+            default $scheme;
+            "~*https" "https";
+        }
+        
+        # Si no hay CF-Visitor pero hay X-Forwarded-Proto, usarlo
+        map $http_x_forwarded_proto $final_proto {
+            default $forwarded_proto;
+            "https" "https";
+        }
+        
+        # Upstream services
+        upstream frontend {
+          server frontend:80;
+        }
+        
+        upstream api_gateway {
+            server api-gateway:8000;
+        }
+        
+        upstream keycloak {
+            server keycloak:8080;
+        }
+        
+        upstream notification {
+            server notification-service:4000;
+        }
+        
+        server {
+            listen 80;
+            server_name _;
+            
+            # API Gateway (debe ir primero - más específico)
+            location /api/ {
+                proxy_pass http://api_gateway/api/;
+                proxy_http_version 1.1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $final_proto;
+                proxy_set_header X-Forwarded-Host $host;
+            }
+            
+            # Keycloak (debe ir antes que /)
+            location /auth/ {
+                proxy_pass http://keycloak/;
+                proxy_http_version 1.1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $final_proto;
+                proxy_set_header X-Forwarded-Host $host;
+                proxy_buffer_size 128k;
+                proxy_buffers 4 256k;
+                proxy_busy_buffers_size 256k;
+            }
+
+            # Keycloak direct realms path (por si llega sin /auth)
+            location /realms/ {
+              proxy_pass http://keycloak/realms/;
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $final_proto;
+              proxy_set_header X-Forwarded-Host $host;
+              proxy_buffer_size 128k;
+              proxy_buffers 4 256k;
+              proxy_busy_buffers_size 256k;
+            }
+
+            # Keycloak static resources (CSS, JS, images)
+            location /resources/ {
+              proxy_pass http://keycloak/resources/;
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $final_proto;
+              proxy_set_header X-Forwarded-Host $host;
+              proxy_cache_valid 200 1h;
+            }
+            
+            # Notifications WebSocket (debe ir antes que /)
+            location /socket.io/ {
+                proxy_pass http://notification/socket.io/;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "Upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+            
+            # Frontend (SPA - debe ir al FINAL para capturar todo lo demás)
+            location / {
+                proxy_pass http://frontend;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $final_proto;
+                proxy_set_header X-Forwarded-Host $host;
+            }
+        }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-proxy
+  namespace: ticketbuster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-proxy
+  template:
+    metadata:
+      labels:
+        app: nginx-proxy
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-proxy
+  namespace: ticketbuster
+spec:
+  selector:
+    app: nginx-proxy
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP

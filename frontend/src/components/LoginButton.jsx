@@ -105,7 +105,7 @@ export function useCurrentUser() {
  * Configuración para AuthProvider
  */
 export const oidcConfig = {
-  authority: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080/realms/ticketbuster',
+  authority: import.meta.env.VITE_KEYCLOAK_URL || `${window.location.protocol}//${window.location.host}/realms/ticketbuster`,
   client_id: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'ticketbuster-frontend',
   redirect_uri: window.location.origin,
   post_logout_redirect_uri: window.location.origin,

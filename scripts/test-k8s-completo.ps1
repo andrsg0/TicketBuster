@@ -225,9 +225,14 @@ Start-Sleep -Seconds 30
 Write-Host ""
 Write-Host "[PASO 6/6] Iniciando acceso local..." -ForegroundColor Yellow
 
-# Frontend
+# Frontend (sirve build estatico en puerto 80, se expone local como 5173 por compatibilidad)
 Write-Host "  [*] Frontend -> http://localhost:5173" -ForegroundColor Blue
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: Frontend :5173'; kubectl port-forward svc/frontend 5173:5173 -n $NAMESPACE"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: Frontend :5173->80'; kubectl port-forward svc/frontend 5173:80 -n $NAMESPACE"
+Start-Sleep -Seconds 2
+
+# Nginx Proxy (entrada unificada para Cloudflare / túneles) - usa 8888 para no chocar con Keycloak
+Write-Host "  [*] Nginx Proxy -> http://localhost:8888" -ForegroundColor Blue
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: Nginx Proxy :8888'; kubectl port-forward svc/nginx-proxy 8888:80 -n $NAMESPACE"
 Start-Sleep -Seconds 2
 
 # API Gateway
@@ -257,6 +262,7 @@ Write-Host "================================================================" -F
 Write-Host ""
 Write-Host "Acceso:" -ForegroundColor Yellow
 Write-Host "  Frontend:       http://localhost:5173" -ForegroundColor Cyan
+Write-Host "  Proxy (Cloudflare): http://localhost:8888" -ForegroundColor Cyan
 Write-Host "  API:            http://localhost:8000" -ForegroundColor Cyan
 Write-Host "  Keycloak:       http://localhost:9080 (admin/admin)" -ForegroundColor Cyan
 Write-Host "  Notifications:  http://localhost:4000 (WebSocket)" -ForegroundColor Cyan

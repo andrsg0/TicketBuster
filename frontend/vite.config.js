@@ -99,7 +99,9 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    allowedHosts: ['.trycloudflare.com'],
+    strictPort: true,
+    // Permitir accesos desde el servicio interno y el proxy nginx
+    allowedHosts: ['frontend', 'frontend.ticketbuster.svc.cluster.local', 'nginx-proxy', '.trycloudflare.com', 'localhost', '127.0.0.1'],
     watch: {
       usePolling: true
     },

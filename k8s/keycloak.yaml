@@ -36,11 +36,22 @@ data:
           "standardFlowEnabled": true,
           "implicitFlowEnabled": false,
           "protocol": "openid-connect",
-          "rootUrl": "http://localhost:5173",
+          "rootUrl": "/",
           "baseUrl": "/",
-          "redirectUris": ["http://localhost:5173/*", "http://127.0.0.1:5173/*"],
-          "webOrigins": ["http://localhost:5173", "http://127.0.0.1:5173", "+"],
-          "attributes": {"post.logout.redirect.uris": "http://localhost:5173/*"}
+          "redirectUris": [
+            "/*",
+            "https://*.trycloudflare.com",
+            "https://*.trycloudflare.com/*",
+            "http://localhost:5173/*",
+            "http://127.0.0.1:5173/*"
+          ],
+          "webOrigins": [
+            "+",
+            "https://*.trycloudflare.com",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173"
+          ],
+          "attributes": {"post.logout.redirect.uris": "/*"}
         }
       ],
       "users": [
@@ -99,6 +110,8 @@ spec:
               value: "8080"
             - name: KC_PROXY
               value: "edge"
+            - name: KC_PROXY_ADDRESS_FORWARDING
+              value: "true"
             - name: KC_HOSTNAME_STRICT
               value: "false"
             - name: KC_HOSTNAME_STRICT_HTTPS

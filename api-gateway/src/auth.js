@@ -69,14 +69,22 @@ export function authMiddleware(req, res, next) {
 
       const signingKey = key.getPublicKey();
 
-      // Keycloak may not include 'aud' in tokens by default; only verify issuer
+      // Keycloak may not include 'aud' in tokens by default; verify signature only
+      // Issuer validation is skipped because tokens can come from different domains (Cloudflare, localhost, etc.)
       jwt.verify(token, signingKey, {
-        issuer: ISSUER,
         algorithms: ['RS256'],
+        // Don't validate issuer to support multiple frontends (Cloudflare, localhost)
+        ignoreIssuer: true,
       }, (verifyErr, payload) => {
         if (verifyErr) {
-          console.error('Token validation error:', verifyErr.message, '| Issuer expected:', ISSUER);
+          console.error('Token validation error:', verifyErr.message);
           return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        
+        // Verify issuer manually - must end with /realms/ticketbuster
+        if (!payload.iss || !payload.iss.includes(`/realms/${KEYCLOAK_REALM}`)) {
+          console.error('Invalid issuer in token:', payload.iss);
+          return res.status(401).json({ error: 'Invalid token issuer' });
         }
 
         console.log('✓ JWT verified for user:', payload.preferred_username || payload.sub);
