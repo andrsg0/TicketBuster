@@ -88,8 +88,9 @@ Write-Host "  Creando namespace..." -ForegroundColor Blue
 kubectl apply -f "$ROOT_DIR\k8s\namespace.yaml" 2>&1 | Out-Null
 
 # Infrastructure
-Write-Host "  Desplegando PostgreSQL y RabbitMQ..." -ForegroundColor Blue
+Write-Host "  Desplegando PostgreSQL, RabbitMQ y Keycloak..." -ForegroundColor Blue
 kubectl apply -f "$ROOT_DIR\k8s\infrastructure.yaml" 2>&1 | Out-Null
+kubectl apply -f "$ROOT_DIR\k8s\keycloak.yaml" 2>&1 | Out-Null
 
 # Esperar a que PostgreSQL y RabbitMQ esten listos
 Write-Host "  Esperando a que PostgreSQL este listo..." -ForegroundColor DarkGray
@@ -121,6 +122,29 @@ while ($waited -lt $maxWait) {
     }
     Start-Sleep -Seconds 2
     $waited += 2
+}
+
+# Esperar a que Keycloak este listo (tarda mas que los demas)
+Write-Host "  Esperando a que Keycloak este listo (puede tardar 1-2 min)..." -ForegroundColor DarkGray
+$maxWaitKc = 120
+$waited = 0
+while ($waited -lt $maxWaitKc) {
+    $kcReady = kubectl get pods -n $NAMESPACE -l app=keycloak -o jsonpath='{.items[0].status.phase}' 2>&1
+    if ($kcReady -eq "Running") {
+        $kcContainerReady = kubectl get pods -n $NAMESPACE -l app=keycloak -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>&1
+        if ($kcContainerReady -eq "true") {
+            Write-Host "  [OK] Keycloak listo" -ForegroundColor Green
+            # Iniciar port-forward temporal para inicializar usuarios
+            $kcPortForward = Start-Process powershell -ArgumentList "-Command", "kubectl port-forward svc/keycloak 8080:8080 -n $NAMESPACE" -PassThru
+            Start-Sleep -Seconds 5
+            # Inicializar usuarios de Keycloak
+            & "$ROOT_DIR\scripts\init-keycloak-users.ps1"
+            Stop-Process -Id $kcPortForward.Id -Force -ErrorAction SilentlyContinue
+            break
+        }
+    }
+    Start-Sleep -Seconds 5
+    $waited += 5
 }
 
 # Dar tiempo extra para que los servicios internos inicien
@@ -155,11 +179,8 @@ $eventCount = $eventCount -replace '\s',''
 if ($eventCount -match '^\d+$' -and [int]$eventCount -gt 0) {
     Write-Host "  [SKIP] Base de datos ya tiene $eventCount eventos" -ForegroundColor Cyan
 } else {
-    Write-Host "  Copiando init.sql..." -ForegroundColor DarkGray
-    kubectl cp "$ROOT_DIR\k8s\init.sql" "${NAMESPACE}/${pgPod}:/tmp/init.sql" 2>&1 | Out-Null
-
     Write-Host "  Ejecutando init.sql..." -ForegroundColor DarkGray
-    kubectl exec -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -f /tmp/init.sql 2>&1 | Out-Null
+    Get-Content -Raw "$ROOT_DIR\k8s\init.sql" | kubectl exec -i -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -f - 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "[OK] Base de datos inicializada con 20 eventos" -ForegroundColor Green
@@ -206,6 +227,11 @@ Write-Host "  [*] RabbitMQ UI -> http://localhost:15672" -ForegroundColor DarkGr
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: RabbitMQ :15672'; kubectl port-forward svc/rabbitmq 15672:15672 -n $NAMESPACE"
 Start-Sleep -Seconds 2
 
+# Keycloak
+Write-Host "  [*] Keycloak -> http://localhost:8080" -ForegroundColor Blue
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: Keycloak :8080'; kubectl port-forward svc/keycloak 8080:8080 -n $NAMESPACE"
+Start-Sleep -Seconds 2
+
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host "          TICKETBUSTER CORRIENDO EN KUBERNETES!" -ForegroundColor Green
@@ -214,7 +240,12 @@ Write-Host ""
 Write-Host "Acceso:" -ForegroundColor Yellow
 Write-Host "  Frontend:   http://localhost:5173" -ForegroundColor Cyan
 Write-Host "  API:        http://localhost:8000" -ForegroundColor Cyan
+Write-Host "  Keycloak:   http://localhost:8080 (admin/admin)" -ForegroundColor Cyan
 Write-Host "  RabbitMQ:   http://localhost:15672 (guest/guest)" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "Usuarios de prueba (Keycloak):" -ForegroundColor Yellow
+Write-Host "  Usuario:    estudiante / estudiante123" -ForegroundColor Cyan
+Write-Host "  Admin:      admin / admin123" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Abriendo navegador..." -ForegroundColor Yellow
 Start-Sleep -Seconds 3

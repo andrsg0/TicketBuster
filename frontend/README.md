@@ -140,9 +140,11 @@ VITE_KEYCLOAK_URL=http://localhost:8080/realms/ticketbuster
 VITE_KEYCLOAK_CLIENT_ID=ticketbuster-frontend
 
 # Desarrollo
-VITE_DEV_MODE=true
+VITE_DEV_MODE=false
 VITE_LOG_LEVEL=debug
 ```
+
+> Usa `VITE_DEV_MODE=true` solo si aún no tienes Keycloak disponible; en producción debe permanecer en `false` para exigir un JWT real.
 
 ### Variables Importantes
 

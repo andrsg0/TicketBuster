@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
 
 export default function Header({ user, onLogin, onLogout }) {
+  const { totalItems } = useCart();
+
   return (
     <header className="bg-white shadow-sm mb-px">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
@@ -27,10 +30,28 @@ export default function Header({ user, onLogin, onLogout }) {
               Mis Tickets
             </Link>
           )}
+          <Link to="/cart" className="relative text-gray hover:text-primary transition-colors font-medium flex items-center gap-1">
+            <span className="material-symbols-outlined text-lg">shopping_cart</span>
+            <span className="hidden lg:inline">Carrito</span>
+            {totalItems > 0 && (
+              <span className="absolute -top-2 -right-3 px-2 py-0.5 bg-error text-white text-xs rounded-full">
+                {totalItems}
+              </span>
+            )}
+          </Link>
         </nav>
 
         {/* User Section */}
         <div className="flex items-center gap-3">
+          <Link to="/cart" className="relative text-gray hover:text-primary transition-colors font-medium flex items-center gap-1 md:hidden">
+            <span className="material-symbols-outlined text-lg">shopping_cart</span>
+            {totalItems > 0 && (
+              <span className="absolute -top-2 -right-3 px-2 py-0.5 bg-error text-white text-xs rounded-full">
+                {totalItems}
+              </span>
+            )}
+          </Link>
+
           {user ? (
             <div className="flex items-center gap-3">
               <div className="hidden sm:block text-right">

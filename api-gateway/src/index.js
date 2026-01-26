@@ -109,6 +109,36 @@ app.post('/api/events/:id/seats/:seatId/unlock', authMiddleware, async (req, res
   }
 });
 
+// ============================================
+// Cart sync (idempotent, best-effort)
+// ============================================
+app.post('/api/cart/sync', authMiddleware, async (req, res) => {
+  try {
+    const { items } = req.body || {};
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'items must be an array' });
+    }
+
+    // No persistimos aún; este endpoint sirve para confirmar recepción
+    // y permitir futuras extensiones (ej. guardar carrito en server-side session).
+    const sanitized = items.map(item => ({
+      id: item.id,
+      eventId: item.eventId,
+      seatId: item.id,
+      section: item.section,
+      row: item.row,
+      seat_number: item.seat_number,
+      price: item.price,
+    }));
+
+    res.json({ ok: true, received: sanitized.length });
+  } catch (error) {
+    console.error('[CART] Error syncing cart:', error);
+    res.status(500).json({ error: 'Failed to sync cart' });
+  }
+});
+
 // Protected route: Create order (async - returns 202 Accepted)
 app.post('/api/buy', authMiddleware, async (req, res) => {
   try {

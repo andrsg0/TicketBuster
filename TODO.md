@@ -4,12 +4,12 @@
 
 ## 🔐 Autenticación y Usuarios
 
-- [ ] **Login con Keycloak** - Integrar autenticación real con Keycloak
+- [x] **Login con Keycloak** - Integrar autenticación real con Keycloak
   - [ ] Configurar Keycloak en K8s
-  - [ ] Crear realm `ticketbuster`
-  - [ ] Configurar cliente para frontend (SPA)
-  - [ ] Implementar flujo OAuth2/OIDC en frontend
-  - [ ] Validar JWT real en API Gateway (quitar DEV_MODE)
+  - [x] Crear realm `ticketbuster`
+  - [x] Configurar cliente para frontend (SPA)
+  - [x] Implementar flujo OAuth2/OIDC en frontend
+  - [x] Validar JWT real en API Gateway (quitar DEV_MODE)
 
 - [ ] **Cambiar de usuario** - Permitir logout y login con otro usuario
   - [ ] Botón de logout en frontend
@@ -30,25 +30,25 @@
 
 ## 🛒 Carrito de Compras
 
-- [ ] **Implementar carrito persistente**
-  - [ ] Almacenar carrito en localStorage (offline-first)
-  - [ ] Sincronizar carrito con backend cuando hay conexión
-  - [ ] Mostrar contador de items en header
+- [x] **Implementar carrito persistente**
+  - [x] Almacenar carrito en localStorage (offline-first)
+  - [x] Sincronizar carrito con backend cuando hay conexión
+  - [x] Mostrar contador de items en header
 
-- [ ] **Página de carrito**
-  - [ ] Listar asientos seleccionados
-  - [ ] Mostrar precio por asiento y total
-  - [ ] Botón para eliminar items
-  - [ ] Botón para vaciar carrito
+- [x] **Página de carrito**
+  - [x] Listar asientos seleccionados
+  - [x] Mostrar precio por asiento y total
+  - [x] Botón para eliminar items
+  - [x] Botón para vaciar carrito
 
-- [ ] **Reserva temporal de asientos**
-  - [ ] Lock de asientos por X minutos mientras están en carrito
-  - [ ] Timer visible mostrando tiempo restante
-  - [ ] Auto-liberar asientos si expira el tiempo
+- [x] **Reserva temporal de asientos**
+  - [x] Lock de asientos por X minutos mientras están en carrito
+  - [x] Timer visible mostrando tiempo restante
+  - [x] Auto-liberar asientos si expira el tiempo
 
-- [ ] **Checkout multi-evento**
-  - [ ] Permitir comprar asientos de diferentes eventos en una sola orden
-  - [ ] Agrupar tickets por evento en confirmación
+- [x] **Checkout multi-evento**
+  - [x] Permitir comprar asientos de diferentes eventos en una sola orden
+  - [x] Agrupar tickets por evento en confirmación
 
 ---
 

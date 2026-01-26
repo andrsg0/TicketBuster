@@ -4,9 +4,21 @@
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.DEV;
 
 // Token mock para desarrollo (mismo UUID que en api-gateway/src/auth.js)
 const DEV_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMWIyYzNkNC1lNWY2LTc4OTAtYWJjZC1lZjEyMzQ1Njc4OTAiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJkZXZ1c2VyIiwiZW1haWwiOiJkZXZAdGlja2V0YnVzdGVyLmxvY2FsIn0.mock';
+
+// En K8s siempre usar DEV_TOKEN porque el gateway está en DEV_MODE
+let authToken = DEV_TOKEN;
+
+export function setAuthToken(token) {
+  authToken = token || null;
+}
+
+export function clearAuthToken() {
+  authToken = null;
+}
 
 /**
  * Wrapper para fetch con manejo de errores
@@ -16,8 +28,12 @@ async function fetchAPI(endpoint, options = {}) {
   
   const defaultHeaders = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${DEV_TOKEN}`,
   };
+
+  const token = authToken;
+  if (token) {
+    defaultHeaders.Authorization = `Bearer ${token}`;
+  }
 
   const config = {
     ...options,
@@ -128,6 +144,16 @@ export async function unlockSeat(eventId, seatId) {
  */
 export async function getOrderStatus(orderUuid) {
   return fetchAPI(`/orders/${orderUuid}`);
+}
+
+// ==================== CART ====================
+
+export async function syncCart(items) {
+  // Backend should accept a payload like { items: [...] }
+  return fetchAPI('/cart/sync', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
 }
 
 // ==================== USER ====================

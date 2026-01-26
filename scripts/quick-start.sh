@@ -26,10 +26,10 @@ if [[ -f "$ROOT_DIR/.env" ]]; then
 fi
 
 # Step 1: Start Docker infrastructure
-echo -e "${YELLOW}[1/5]${NC} Starting Docker infrastructure..."
+echo -e "${YELLOW}[1/5]${NC} Starting Docker infrastructure (postgres, rabbitmq, keycloak)..."
 cd "$ROOT_DIR"
-docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d postgres rabbitmq 2>/dev/null || \
-docker-compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d postgres rabbitmq
+docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d postgres rabbitmq keycloak 2>/dev/null || \
+docker-compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d postgres rabbitmq keycloak
 
 # Wait for PostgreSQL
 echo -e "${YELLOW}[2/5]${NC} Waiting for PostgreSQL..."
@@ -45,8 +45,16 @@ until docker exec ${PROJECT_NAME}-rabbitmq rabbitmq-diagnostics -q ping &>/dev/n
 done
 echo -e "${GREEN}✓${NC} RabbitMQ ready"
 
+# Wait for Keycloak (health on main port)
+KEYCLOAK_PORT=${KEYCLOAK_PORT:-8080}
+echo -e "${YELLOW}[4/6]${NC} Waiting for Keycloak (http://localhost:${KEYCLOAK_PORT}/health/ready)..."
+until curl -sf "http://localhost:${KEYCLOAK_PORT}/health/ready" >/dev/null 2>&1; do
+    sleep 2
+done
+echo -e "${GREEN}✓${NC} Keycloak ready"
+
 # Start services
-echo -e "${YELLOW}[4/5]${NC} Starting microservices..."
+echo -e "${YELLOW}[5/6]${NC} Starting microservices..."
 
 # Check if we're in a terminal multiplexer
 if command -v tmux &>/dev/null && [[ -z "${TMUX:-}" ]]; then
@@ -84,7 +92,7 @@ else
     
     sleep 3
     
-    echo -e "${YELLOW}[5/5]${NC} Starting frontend..."
+    echo -e "${YELLOW}[6/6]${NC} Starting frontend..."
     cd "$ROOT_DIR/frontend"
     [[ ! -d node_modules ]] && npm install --silent
     

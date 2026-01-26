@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import jwksRsa from 'jwks-rsa';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
@@ -15,6 +16,21 @@ const MOCK_USER = {
   email: 'dev@ticketbuster.local',
 };
 
+const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || 'ticketbuster';
+const KEYCLOAK_URL = (process.env.KEYCLOAK_URL || process.env.KEYCLOAK_AUTH_URL || 'http://localhost:8080').replace(/\/$/, '');
+const ISSUER = process.env.KEYCLOAK_ISSUER || `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`;
+const JWKS_URI = process.env.KEYCLOAK_JWKS_URI || `${ISSUER}/protocol/openid-connect/certs`;
+const AUDIENCE = process.env.KEYCLOAK_AUDIENCE || process.env.KEYCLOAK_CLIENT_ID || 'ticketbuster-frontend';
+
+// JWKS client (caché + rate limit para evitar golpear Keycloak)
+const jwksClient = jwksRsa({
+  cache: true,
+  cacheMaxEntries: 5,
+  cacheMaxAge: 10 * 60 * 1000,
+  rateLimit: true,
+  jwksUri: JWKS_URI,
+});
+
 /**
  * Authentication middleware for Express
  * Validates JWT tokens from Keycloak or allows bypass in DEV_MODE
@@ -30,7 +46,6 @@ export function authMiddleware(req, res, next) {
 
   // Development mode: bypass validation and use mock user
   const devMode = process.env.DEV_MODE === 'true';
-  console.log(`DEV_MODE: ${process.env.DEV_MODE}, devMode: ${devMode}`);
   
   if (devMode) {
     console.warn('⚠️  DEV_MODE enabled: Bypassing JWT validation');
@@ -40,26 +55,42 @@ export function authMiddleware(req, res, next) {
 
   // Production mode: validate JWT
   try {
-    // Decode without verification first to check payload
-    const decoded = jwt.decode(token, { complete: true });
-    
-    if (!decoded) {
+    // Decode header to get kid and avoid double parsing
+    const decodedHeader = jwt.decode(token, { complete: true });
+    if (!decodedHeader) {
       return res.status(401).json({ error: 'Invalid token format' });
     }
 
-    // Extract user info from token
-    req.user = {
-      sub: decoded.payload.sub,
-      preferred_username: decoded.payload.preferred_username,
-      email: decoded.payload.email,
-    };
+    jwksClient.getSigningKey(decodedHeader.header.kid, (err, key) => {
+      if (err) {
+        console.error('Error retrieving signing key:', err.message);
+        return res.status(401).json({ error: 'Unable to verify token' });
+      }
 
-    // TODO: In production, verify signature using JWKS endpoint
-    // const jwksClient = new JwksRsa({ jwksUri: process.env.KEYCLOAK_JWKS_URI });
-    // const signingKey = await jwksClient.getSigningKey(decoded.header.kid);
-    // jwt.verify(token, signingKey.getPublicKey());
+      const signingKey = key.getPublicKey();
 
-    next();
+      // Keycloak may not include 'aud' in tokens by default; only verify issuer
+      jwt.verify(token, signingKey, {
+        issuer: ISSUER,
+        algorithms: ['RS256'],
+      }, (verifyErr, payload) => {
+        if (verifyErr) {
+          console.error('Token validation error:', verifyErr.message, '| Issuer expected:', ISSUER);
+          return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        console.log('✓ JWT verified for user:', payload.preferred_username || payload.sub);
+
+        req.user = {
+          sub: payload.sub,
+          preferred_username: payload.preferred_username,
+          email: payload.email,
+          roles: payload.realm_access?.roles || payload.resource_access?.[AUDIENCE]?.roles || [],
+        };
+
+        return next();
+      });
+    });
   } catch (error) {
     console.error('Token validation error:', error.message);
     return res.status(401).json({ error: 'Invalid or expired token' });

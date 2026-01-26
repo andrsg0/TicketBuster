@@ -1,0 +1,153 @@
+# ============================================================================
+# KEYCLOAK - Identity and Access Management
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: ticketbuster
+data:
+  ticketbuster-realm.json: |
+    {
+      "realm": "ticketbuster",
+      "enabled": true,
+      "sslRequired": "none",
+      "registrationAllowed": true,
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": true,
+      "editUsernameAllowed": false,
+      "bruteForceProtected": true,
+      "accessTokenLifespan": 300,
+      "ssoSessionIdleTimeout": 1800,
+      "ssoSessionMaxLifespan": 36000,
+      "roles": {
+        "realm": [
+          {"name": "user", "description": "Regular user role"},
+          {"name": "admin", "description": "Admin role"}
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "ticketbuster-frontend",
+          "enabled": true,
+          "publicClient": true,
+          "directAccessGrantsEnabled": true,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "protocol": "openid-connect",
+          "rootUrl": "http://localhost:5173",
+          "baseUrl": "/",
+          "redirectUris": ["http://localhost:5173/*", "http://127.0.0.1:5173/*"],
+          "webOrigins": ["http://localhost:5173", "http://127.0.0.1:5173", "+"],
+          "attributes": {"post.logout.redirect.uris": "http://localhost:5173/*"}
+        }
+      ],
+      "users": [
+        {
+          "username": "estudiante",
+          "email": "estudiante@ticketbuster.com",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "Usuario",
+          "lastName": "Estudiante",
+          "credentials": [{"type": "password", "value": "estudiante123", "temporary": false}],
+          "realmRoles": ["user"]
+        },
+        {
+          "username": "admin",
+          "email": "admin@ticketbuster.com",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "Admin",
+          "lastName": "TicketBuster",
+          "credentials": [{"type": "password", "value": "admin123", "temporary": false}],
+          "realmRoles": ["admin", "user"]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: ticketbuster
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:23.0.0
+          args:
+            - start-dev
+            - --import-realm
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: "admin"
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: "admin"
+            - name: KC_HTTP_PORT
+              value: "8080"
+            - name: KC_PROXY
+              value: "edge"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HOSTNAME_STRICT_HTTPS
+              value: "false"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: realm-config
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 30
+      volumes:
+        - name: realm-config
+          configMap:
+            name: keycloak-realm-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: ticketbuster
+  labels:
+    app: keycloak
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: keycloak

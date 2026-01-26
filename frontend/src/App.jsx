@@ -1,9 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 
 // Components
 import Layout from './components/Layout';
+import CartPage from './pages/CartPage';
+import CartCheckoutPage from './pages/CartCheckoutPage';
+import { CartProvider } from './context/CartContext';
+import { setAuthToken, clearAuthToken } from './services/api';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -25,10 +29,14 @@ function App() {
   const auth = useAuth();
   const [toast, setToast] = useState(null);
 
+  const isAuthenticated = DEV_MODE || auth.isAuthenticated;
+
   // Get user ID (from Keycloak or mock)
   const userId = DEV_MODE 
     ? MOCK_USER_ID 
-    : auth.user?.profile?.sub;
+    : auth.isAuthenticated 
+      ? auth.user?.profile?.sub 
+      : null;
 
   // User object for display
   const user = DEV_MODE 
@@ -40,6 +48,19 @@ function App() {
           email: auth.user?.profile?.email
         }
       : null;
+
+  // Propagar token de Keycloak al API service
+  useEffect(() => {
+    if (DEV_MODE) {
+      return;
+    }
+
+    if (auth.isAuthenticated && auth.user?.access_token) {
+      setAuthToken(auth.user.access_token);
+    } else {
+      clearAuthToken();
+    }
+  }, [auth.isAuthenticated, auth.user]);
 
   // Notifications via Socket.io
   const { 
@@ -78,6 +99,12 @@ function App() {
     auth.signoutRedirect();
   }, [auth]);
 
+  const handleRequireAuth = useCallback(() => {
+    if (DEV_MODE) return true;
+    auth.signinRedirect();
+    return false;
+  }, [auth]);
+
   // Handle toast from child components
   const handleToast = useCallback((notification) => {
     setToast(notification);
@@ -96,13 +123,15 @@ function App() {
       <Route 
         path="/" 
         element={
-          <Layout 
-            user={user}
-            onLogin={handleLogin}
-            onLogout={handleLogout}
-            notification={displayNotification}
-            onDismissNotification={handleDismissToast}
-          />
+          <CartProvider>
+            <Layout 
+              user={user}
+              onLogin={handleLogin}
+              onLogout={handleLogout}
+              notification={displayNotification}
+              onDismissNotification={handleDismissToast}
+            />
+          </CartProvider>
         }
       >
         <Route index element={<HomePage />} />
@@ -119,6 +148,8 @@ function App() {
           path="event/:id/seats" 
           element={
             <SeatSelectionPage 
+              isAuthenticated={isAuthenticated}
+              onRequireAuth={handleRequireAuth}
               userId={userId} 
               onToast={handleToast}
             />
@@ -128,6 +159,8 @@ function App() {
           path="event/:id/checkout" 
           element={
             <CheckoutPage 
+              isAuthenticated={isAuthenticated}
+              onRequireAuth={handleRequireAuth}
               userId={userId} 
               onToast={handleToast}
             />
@@ -140,6 +173,14 @@ function App() {
         <Route 
           path="my-tickets" 
           element={<MyTicketsPage userId={userId} />} 
+        />
+        <Route 
+          path="cart" 
+          element={<CartPage />} 
+        />
+        <Route 
+          path="cart/checkout" 
+          element={<CartCheckoutPage isAuthenticated={isAuthenticated} onRequireAuth={handleRequireAuth} onToast={handleToast} />} 
         />
       </Route>
     </Routes>

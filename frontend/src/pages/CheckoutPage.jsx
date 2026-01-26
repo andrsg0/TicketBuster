@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { createMultipleOrders } from '../services/api';
+import { createMultipleOrders, getEvent } from '../services/api';
+import { useCart } from '../context/CartContext';
 
-export default function CheckoutPage({ onToast }) {
+export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { items, clearEvent } = useCart();
   const [event, setEvent] = useState(null);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [processing, setProcessing] = useState(false);
@@ -17,17 +19,37 @@ export default function CheckoutPage({ onToast }) {
     const storedEvent = sessionStorage.getItem('eventData');
     
     if (!storedSeats || !storedEvent) {
-      navigate(`/event/${id}`);
-      return;
-    }
+      const eventSeats = items.filter(s => String(s.eventId) === String(id));
+      if (eventSeats.length === 0) {
+        navigate(`/event/${id}`);
+        return;
+      }
+      setSelectedSeats(eventSeats.map(s => ({
+        id: s.id,
+        section: s.section,
+        row: s.row,
+        seat_number: s.seat_number,
+      })));
 
-    setSelectedSeats(JSON.parse(storedSeats));
-    setEvent(JSON.parse(storedEvent));
-  }, [id, navigate]);
+      // Intentar recuperar datos del evento para mostrar resumen
+      getEvent(id)
+        .then(data => setEvent(data.event || data))
+        .catch(() => {});
+    } else {
+      setSelectedSeats(JSON.parse(storedSeats));
+      setEvent(JSON.parse(storedEvent));
+    }
+  }, [id, navigate, items]);
 
   const totalPrice = selectedSeats.length * (parseFloat(event?.price) || 0);
 
   const handleConfirm = async () => {
+    if (!isAuthenticated) {
+      onToast?.({ type: 'info', message: 'Inicia sesión para confirmar la compra' });
+      onRequireAuth?.();
+      return;
+    }
+
     if (processing) return;
     
     setProcessing(true);
@@ -38,9 +60,10 @@ export default function CheckoutPage({ onToast }) {
       setOrderResult(result);
       setSuccess(true);
       
-      // Limpiar sessionStorage
+      // Limpiar sessionStorage y carrito de este evento
       sessionStorage.removeItem('selectedSeats');
       sessionStorage.removeItem('eventData');
+      if (event) clearEvent(event.id);
       
       if (result.successful.length > 0) {
         onToast?.({

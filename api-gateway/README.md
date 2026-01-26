@@ -67,6 +67,16 @@ npm run dev
 PORT=8000
 NODE_ENV=production
 
+# Keycloak
+KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_REALM=ticketbuster
+KEYCLOAK_CLIENT_ID=ticketbuster-frontend
+KEYCLOAK_AUDIENCE=ticketbuster-frontend
+KEYCLOAK_JWKS_URI=http://localhost:8080/realms/ticketbuster/protocol/openid-connect/certs
+
+# Dev bypass (solo entornos locales)
+DEV_MODE=false
+
 # Database
 DB_HOST=postgres
 DB_PORT=5432

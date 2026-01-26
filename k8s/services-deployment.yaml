@@ -141,6 +141,15 @@ spec:
               value: "http://catalog-service:3000"
             - name: NOTIFICATION_URL
               value: "http://notification-service:4000"
+            - name: DEV_MODE
+              value: "true"
+            # Keycloak Auth (usado cuando DEV_MODE=false)
+            - name: KEYCLOAK_URL
+              value: "http://keycloak:8080"
+            - name: KEYCLOAK_REALM
+              value: "ticketbuster"
+            - name: KEYCLOAK_CLIENT_ID
+              value: "ticketbuster-frontend"
             # PostgreSQL
             - name: POSTGRES_HOST
               value: "postgres"

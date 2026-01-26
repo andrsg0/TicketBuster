@@ -1,0 +1,85 @@
+{
+  "realm": "ticketbuster",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "Regular user role"
+      },
+      {
+        "name": "admin",
+        "description": "Admin role"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "ticketbuster-frontend",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:5173",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "+"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "estudiante",
+      "email": "estudiante@ticketbuster.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Usuario",
+      "lastName": "Estudiante",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "estudiante123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["user"]
+    },
+    {
+      "username": "admin",
+      "email": "admin@ticketbuster.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "TicketBuster",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin", "user"]
+    }
+  ]
+}

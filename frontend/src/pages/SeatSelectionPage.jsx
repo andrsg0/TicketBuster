@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getEvent, lockSeat, unlockSeat } from '../services/api';
+import { useCart } from '../context/CartContext';
 
 // Colores para secciones
 const sectionColors = {
@@ -13,15 +14,18 @@ const sectionColors = {
 
 // Grace period: si se deselecciona antes de este tiempo (ms), no se envía unlock al servidor
 const LOCK_GRACE_PERIOD_MS = 2000;
+const LOCK_DURATION_MS = 10 * 60 * 1000; // 5 minutos
 
-export default function SeatSelectionPage({ onToast }) {
+export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireAuth }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { upsertEventSeats, items } = useCart();
   const [event, setEvent] = useState(null);
   const [seats, setSeats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [activeSection, setActiveSection] = useState(null);
+  const [nowTick, setNowTick] = useState(Date.now());
   
   // Estados de operaciones en curso por asiento (para feedback visual)
   const [seatOperations, setSeatOperations] = useState({}); // { seatId: 'locking' | 'unlocking' }
@@ -69,6 +73,43 @@ export default function SeatSelectionPage({ onToast }) {
       });
     };
   }, [id, navigate, onToast]);
+
+  // Tick para countdown de locks
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-liberar asientos cuando expira el tiempo de lock
+  useEffect(() => {
+    if (!selectedSeats.length) return;
+    const expired = [];
+
+    selectedSeats.forEach(seat => {
+      const tracking = lockTrackingRef.current[seat.id];
+      if (!tracking || seatOperations[seat.id]) return;
+      const elapsed = nowTick - tracking.lockedAt;
+      if (elapsed >= LOCK_DURATION_MS) {
+        expired.push(seat);
+      }
+    });
+
+    if (!expired.length) return;
+
+    const expiredIds = new Set(expired.map(s => s.id));
+
+    setSelectedSeats(prev => prev.filter(s => !expiredIds.has(s.id)));
+    setSeats(prev => prev.map(s => expiredIds.has(s.id) ? { ...s, status: 'AVAILABLE' } : s));
+
+    expired.forEach(seat => {
+      delete lockTrackingRef.current[seat.id];
+      pendingLocksRef.current[seat.id]?.abort();
+      delete pendingLocksRef.current[seat.id];
+      unlockSeat(id, seat.id).catch(() => {});
+    });
+
+    onToast?.({ type: 'warning', message: `${expired.length} asiento(s) liberado(s) por tiempo` });
+  }, [nowTick, selectedSeats, id, onToast, seatOperations]);
 
   // Agrupar asientos por sección y fila
   const seatsBySection = useMemo(() => {
@@ -202,6 +243,11 @@ export default function SeatSelectionPage({ onToast }) {
 
   // Toggle unificado
   const toggleSeat = useCallback((seat) => {
+    if (!isAuthenticated) {
+      onToast?.({ type: 'info', message: 'Inicia sesión para seleccionar asientos' });
+      onRequireAuth?.();
+      return;
+    }
     // Ignorar si hay operación en curso para este asiento
     if (seatOperations[seat.id]) return;
     
@@ -214,18 +260,39 @@ export default function SeatSelectionPage({ onToast }) {
       if (seat.status !== 'AVAILABLE') return;
       selectSeat(seat);
     }
-  }, [seatOperations, selectedSeats, selectSeat, deselectSeat]);
+  }, [isAuthenticated, onRequireAuth, onToast, seatOperations, selectedSeats, selectSeat, deselectSeat]);
 
   const handleContinue = () => {
     if (selectedSeats.length === 0) return;
-    
-    // Guardar selección en sessionStorage para la página de confirmación
+
+    if (!isAuthenticated) {
+      onToast?.({ type: 'info', message: 'Inicia sesión para continuar con la compra' });
+      onRequireAuth?.();
+      return;
+    }
+
+    const uniqueEvents = new Set(items.map(i => i.eventId));
+
+    // Si hay más de un evento en el carrito, ir al checkout multi-evento
+    if (uniqueEvents.size > 1) {
+      navigate('/cart/checkout');
+      return;
+    }
+
+    // Caso de un solo evento: flujo tradicional
     sessionStorage.setItem('selectedSeats', JSON.stringify(selectedSeats));
     sessionStorage.setItem('eventData', JSON.stringify(event));
     navigate(`/event/${id}/checkout`);
   };
 
   const totalPrice = selectedSeats.length * (parseFloat(event?.price) || 0);
+
+  // Sincronizar selección con carrito local para mostrar badge y permitir vaciar
+  useEffect(() => {
+    if (event) {
+      upsertEventSeats(event, selectedSeats);
+    }
+  }, [event, selectedSeats, upsertEventSeats]);
 
   if (loading) {
     return (
@@ -330,6 +397,11 @@ export default function SeatSelectionPage({ onToast }) {
                             const operation = seatOperations[seat.id];
                             const isProcessing = !!operation;
                             const colors = sectionColors[activeSection] || sectionColors.GENERAL;
+                            const tracking = lockTrackingRef.current[seat.id];
+                            const lockedAt = tracking?.lockedAt;
+                            const remainingMs = lockedAt ? Math.max(0, LOCK_DURATION_MS - (nowTick - lockedAt)) : null;
+                            const remainingMin = remainingMs != null ? Math.floor(remainingMs / 60000) : null;
+                            const remainingSec = remainingMs != null ? Math.floor((remainingMs % 60000) / 1000) : null;
                             
                             return (
                               <button
@@ -352,7 +424,14 @@ export default function SeatSelectionPage({ onToast }) {
                                 {isProcessing ? (
                                   <span className="material-symbols-outlined text-sm animate-spin">sync</span>
                                 ) : (
-                                  seat.seat_number
+                                  <>
+                                    {seat.seat_number}
+                                    {lockedAt && remainingMs > 0 && (
+                                      <span className="absolute -top-2 -right-2 px-1.5 py-0.5 text-[10px] text-white bg-gray-800 rounded-full shadow">
+                                        {remainingMin}:{String(remainingSec).padStart(2,'0')}
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                               </button>
                             );
