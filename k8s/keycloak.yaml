@@ -105,6 +105,17 @@ spec:
               value: "false"
             - name: KC_HTTP_ENABLED
               value: "true"
+            # Usar PostgreSQL para persistencia de datos
+            - name: KC_DB
+              value: "postgres"
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://postgres:5432/ticketbuster"
+            - name: KC_DB_USERNAME
+              value: "admin"
+            - name: KC_DB_PASSWORD
+              value: "admin"
+            - name: KC_DB_SCHEMA
+              value: "keycloak"
           ports:
             - containerPort: 8080
               name: http
