@@ -64,17 +64,20 @@ export default function Header({ user, onLogin, onLogout }) {
               <button
                 onClick={onLogout}
                 className="text-sm text-gray-dark hover:text-error transition-colors"
+                title="Cerrar sesión"
               >
-                Salir
+                <span className="material-symbols-outlined">logout</span>
               </button>
             </div>
           ) : (
-            <button
-              onClick={onLogin}
-              className="px-6 py-2 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors"
-            >
-              Iniciar Sesión
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onLogin}
+                className="px-4 py-2 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors text-sm"
+              >
+                Iniciar Sesión
+              </button>
+            </div>
           )}
         </div>
       </div>

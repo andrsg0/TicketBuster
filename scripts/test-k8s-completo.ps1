@@ -78,14 +78,15 @@ Write-Host "[OK] Todas las imagenes construidas" -ForegroundColor Green
 Write-Host ""
 Write-Host "[PASO 3/5] Desplegando en Kubernetes..." -ForegroundColor Yellow
 
-# Limpiar despliegue anterior si existe
-Write-Host "  Limpiando despliegue anterior..." -ForegroundColor DarkGray
-kubectl delete namespace $NAMESPACE --ignore-not-found=true 2>&1 | Out-Null
-Start-Sleep -Seconds 5
-
-# Namespace
-Write-Host "  Creando namespace..." -ForegroundColor Blue
-kubectl apply -f "$ROOT_DIR\k8s\namespace.yaml" 2>&1 | Out-Null
+# Verificar si el namespace ya existe (para preservar datos)
+$namespaceExists = kubectl get namespace $NAMESPACE --ignore-not-found 2>&1
+if ($namespaceExists -match $NAMESPACE) {
+    Write-Host "  [INFO] Namespace '$NAMESPACE' ya existe - preservando datos" -ForegroundColor Cyan
+    Write-Host "  [INFO] Para limpiar todo: kubectl delete namespace $NAMESPACE" -ForegroundColor DarkGray
+} else {
+    Write-Host "  Creando namespace..." -ForegroundColor Blue
+    kubectl apply -f "$ROOT_DIR\k8s\namespace.yaml" 2>&1 | Out-Null
+}
 
 # Infrastructure
 Write-Host "  Desplegando PostgreSQL, RabbitMQ y Keycloak..." -ForegroundColor Blue
@@ -172,14 +173,17 @@ Start-Sleep -Seconds 5
 # Obtener nombre del pod de postgres
 $pgPod = kubectl get pods -n $NAMESPACE -l app=postgres -o jsonpath='{.items[0].metadata.name}' 2>&1
 
-# Verificar si la BD ya tiene datos
+# Verificar si la BD ya tiene datos (si la tabla no existe, el count falla y eso está bien)
 $eventCount = kubectl exec -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -t -c "SELECT COUNT(*) FROM db_catalog.events;" 2>&1
-$eventCount = $eventCount -replace '\s',''
+$eventCount = ($eventCount -replace '\s','')
 
+# Si el eventCount es un número > 0, skip init.sql
+# Si no es un número (error porque la tabla no existe), o es 0, ejecutar init.sql
 if ($eventCount -match '^\d+$' -and [int]$eventCount -gt 0) {
-    Write-Host "  [SKIP] Base de datos ya tiene $eventCount eventos" -ForegroundColor Cyan
+    Write-Host "  [SKIP] Base de datos ya tiene $eventCount eventos - datos preservados" -ForegroundColor Cyan
+    Write-Host "  [INFO] Para reiniciar datos: kubectl delete pvc postgres-pvc -n $NAMESPACE" -ForegroundColor DarkGray
 } else {
-    Write-Host "  Ejecutando init.sql..." -ForegroundColor DarkGray
+    Write-Host "  Ejecutando init.sql (primera ejecucion o BD vacia)..." -ForegroundColor Blue
     Get-Content -Raw "$ROOT_DIR\k8s\init.sql" | kubectl exec -i -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -f - 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
@@ -227,9 +231,14 @@ Write-Host "  [*] RabbitMQ UI -> http://localhost:15672" -ForegroundColor DarkGr
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: RabbitMQ :15672'; kubectl port-forward svc/rabbitmq 15672:15672 -n $NAMESPACE"
 Start-Sleep -Seconds 2
 
-# Keycloak
-Write-Host "  [*] Keycloak -> http://localhost:8080" -ForegroundColor Blue
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: Keycloak :8080'; kubectl port-forward svc/keycloak 8080:8080 -n $NAMESPACE"
+# Keycloak (puerto 9080 para evitar conflictos, frontend espera este puerto)
+Write-Host "  [*] Keycloak -> http://localhost:9080" -ForegroundColor Blue
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: Keycloak :9080'; kubectl port-forward svc/keycloak 9080:8080 -n $NAMESPACE"
+Start-Sleep -Seconds 2
+
+# Notification Service (para WebSocket real-time)
+Write-Host "  [*] Notifications -> http://localhost:4000" -ForegroundColor Blue
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='K8s Port-Forward: Notifications :4000'; kubectl port-forward svc/notification-service 4000:4000 -n $NAMESPACE"
 Start-Sleep -Seconds 2
 
 Write-Host ""
@@ -238,10 +247,11 @@ Write-Host "          TICKETBUSTER CORRIENDO EN KUBERNETES!" -ForegroundColor Gr
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Acceso:" -ForegroundColor Yellow
-Write-Host "  Frontend:   http://localhost:5173" -ForegroundColor Cyan
-Write-Host "  API:        http://localhost:8000" -ForegroundColor Cyan
-Write-Host "  Keycloak:   http://localhost:8080 (admin/admin)" -ForegroundColor Cyan
-Write-Host "  RabbitMQ:   http://localhost:15672 (guest/guest)" -ForegroundColor DarkGray
+Write-Host "  Frontend:       http://localhost:5173" -ForegroundColor Cyan
+Write-Host "  API:            http://localhost:8000" -ForegroundColor Cyan
+Write-Host "  Keycloak:       http://localhost:9080 (admin/admin)" -ForegroundColor Cyan
+Write-Host "  Notifications:  http://localhost:4000 (WebSocket)" -ForegroundColor Cyan
+Write-Host "  RabbitMQ:       http://localhost:15672 (guest/guest)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Usuarios de prueba (Keycloak):" -ForegroundColor Yellow
 Write-Host "  Usuario:    estudiante / estudiante123" -ForegroundColor Cyan
