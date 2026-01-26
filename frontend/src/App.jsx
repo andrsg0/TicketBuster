@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 
 // Components
@@ -27,6 +27,7 @@ const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
 function App() {
   const auth = useAuth();
+  const location = useLocation();
   const [toast, setToast] = useState(null);
 
   const isAuthenticated = DEV_MODE || auth.isAuthenticated;
@@ -69,17 +70,21 @@ function App() {
   } = useNotifications(userId);
 
   // Order sync when online
+  const handleSyncSuccess = useCallback((order, response) => {
+    console.log('Orden sincronizada:', order, response);
+    setToast({
+      type: 'success',
+      message: `Orden sincronizada exitosamente`
+    });
+  }, []);
+
+  const handleSyncError = useCallback((order, error) => {
+    console.log('Error sincronizando orden:', order, error);
+  }, []);
+
   useOrderSync({
-    onSyncSuccess: (order, response) => {
-      console.log('Orden sincronizada:', order, response);
-      setToast({
-        type: 'success',
-        message: `Orden sincronizada exitosamente`
-      });
-    },
-    onSyncError: (order, error) => {
-      console.log('Error sincronizando orden:', order, error);
-    }
+    onSyncSuccess: handleSyncSuccess,
+    onSyncError: handleSyncError
   });
 
   // Handle login/logout

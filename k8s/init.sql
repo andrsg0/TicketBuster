@@ -108,7 +108,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
     5000
 ),
 (
-    'Teatro Musical: El Fantasma de la Ópera',
+    'Teatro Musical: El Fantasma de la Opera',
     'Presentación exclusiva del clásico musical de Broadway. Una experiencia inolvidable con efectos especiales y orquesta en vivo.',
     'THEATER',
     'Gran Teatro Nacional',
@@ -131,7 +131,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
 ),
 (
     'Coldplay: Music of the Spheres Tour',
-    'La banda británica regresa con su espectacular gira mundial. Luces, confeti y los mejores hits de su carrera.',
+    'La banda britanica regresa con su espectacular gira mundial. Luces, confeti y los mejores hits de su carrera.',
     'CONCERT',
     'Estadio Nacional',
     'Av. José Díaz s/n, Lima',
@@ -175,7 +175,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
 ),
 (
     'Festival Lollapalooza Lima 2026',
-    'Tres días de música con los mejores artistas internacionales. Rock, pop, electrónica y más en un solo lugar.',
+    'Tres dias de musica con los mejores artistas internacionales. Rock, pop, electrónica y más en un solo lugar.',
     'FESTIVAL',
     'Hipódromo de Monterrico',
     'Av. El Derby s/n, Surco',
@@ -185,7 +185,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
     60000
 ),
 (
-    'Ballet Clásico: El Lago de los Cisnes',
+    'Ballet Clasico: El Lago de los Cisnes',
     'El ballet más famoso del mundo interpretado por la compañía nacional. Una noche de elegancia y arte.',
     'THEATER',
     'Teatro Municipal de Lima',
@@ -196,7 +196,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
     1200
 ),
 (
-    'Partido Amistoso: Perú vs Argentina',
+    'Partido Amistoso: Peru vs Argentina',
     'La blanquirroja se enfrenta a la albiceleste en un encuentro imperdible. Fútbol de primer nivel.',
     'SPORTS',
     'Estadio Nacional',
@@ -207,7 +207,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
     45000
 ),
 (
-    'Festival Gastronómico Mistura 2026',
+    'Festival Gastronomico Mistura 2026',
     'La feria gastronómica más grande de Latinoamérica. Degusta lo mejor de la cocina peruana e internacional.',
     'FESTIVAL',
     'Costa Verde',
@@ -218,7 +218,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
     20000
 ),
 (
-    'Karol G: Mañana Será Bonito Tour',
+    'Karol G: Manana Sera Bonito Tour',
     'La bichota llega con su tour mundial. Reggaeton, pop urbano y empoderamiento femenino.',
     'CONCERT',
     'Estadio Nacional',
@@ -284,7 +284,7 @@ INSERT INTO db_catalog.events (title, description, category, venue, venue_addres
     500
 ),
 (
-    'Copa América 2026: Semifinal',
+    'Copa America 2026: Semifinal',
     'Uno de los partidos más importantes del torneo continental. Historia en vivo.',
     'SPORTS',
     'Estadio Monumental',

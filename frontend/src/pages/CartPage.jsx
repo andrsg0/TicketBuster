@@ -1,9 +1,8 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
 export default function CartPage() {
   const { items, totalItems, totalAmount, removeItem, clearAll } = useCart();
-  const navigate = useNavigate();
 
   const grouped = items.reduce((acc, item) => {
     if (!acc[item.eventId]) acc[item.eventId] = { meta: item, seats: [] };
@@ -29,8 +28,7 @@ export default function CartPage() {
   }
 
   const handleContinue = () => {
-    if (totalItems === 0) return;
-    navigate('/cart/checkout');
+    // Navegación se hace directamente con Link en el botón de abajo
   };
 
   return (
@@ -58,13 +56,13 @@ export default function CartPage() {
                   <h2 className="font-bold text-gray-800">{group.meta.eventTitle}</h2>
                   <p className="text-sm text-gray-500">{group.meta.eventVenue}</p>
                 </div>
-                <button
-                  onClick={() => navigate(`/event/${group.meta.eventId}/seats`)}
+                <Link
+                  to={`/event/${group.meta.eventId}/seats`}
                   className="text-sm text-primary hover:text-primary-dark font-semibold flex items-center gap-1"
                 >
                   <span className="material-symbols-outlined text-base">event_seat</span>
                   Editar asientos
-                </button>
+                </Link>
               </div>
 
               <div className="divide-y">
@@ -109,12 +107,12 @@ export default function CartPage() {
             >
               Seguir comprando
             </Link>
-            <button
-              onClick={handleContinue}
+            <Link
+              to="/cart/checkout"
               className="px-6 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark shadow"
             >
               Continuar
-            </button>
+            </Link>
           </div>
         </div>
       </div>

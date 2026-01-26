@@ -4,6 +4,8 @@ import { getEvents } from '../services/api';
 import { getCachedEvents, cacheEvents } from '../services/offlineStorage';
 
 export default function HomePage() {
+  console.log('[HomePage] Render');
+  
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,6 +15,7 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
   useEffect(() => {
+    console.log('[HomePage] useEffect - Montado');
     const fetchEvents = async () => {
       setLoading(true);
       setError(null);

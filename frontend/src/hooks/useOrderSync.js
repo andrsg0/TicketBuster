@@ -20,6 +20,26 @@ export function useOrderSync({ onSyncSuccess, onSyncError, onSyncStart } = {}) {
   const [pendingCount, setPendingCount] = useState(0);
   const [syncResults, setSyncResults] = useState({ success: 0, failed: 0 });
   const syncInProgress = useRef(false);
+  
+  // Usar refs para callbacks para evitar re-renders infinitos
+  const onSyncSuccessRef = useRef(onSyncSuccess);
+  const onSyncErrorRef = useRef(onSyncError);
+  const onSyncStartRef = useRef(onSyncStart);
+  
+  // Actualizar refs cuando cambian los callbacks
+  useEffect(() => {
+    onSyncSuccessRef.current = onSyncSuccess;
+    onSyncErrorRef.current = onSyncError;
+    onSyncStartRef.current = onSyncStart;
+  }, [onSyncSuccess, onSyncError, onSyncStart]);
+
+  /**
+   * Actualiza el contador de órdenes pendientes
+   */
+  const updatePendingCount = useCallback(async () => {
+    const count = await getPendingOrdersCount();
+    setPendingCount(count);
+  }, []);
 
   /**
    * Sincroniza una orden individual
@@ -73,7 +93,7 @@ export function useOrderSync({ onSyncSuccess, onSyncError, onSyncStart } = {}) {
       }
 
       console.log(`[useOrderSync] Sincronizando ${pendingOrders.length} órdenes pendientes...`);
-      onSyncStart?.(pendingOrders.length);
+      onSyncStartRef.current?.(pendingOrders.length);
 
       for (const order of pendingOrders) {
         // Verificar conexión antes de cada orden
@@ -86,10 +106,10 @@ export function useOrderSync({ onSyncSuccess, onSyncError, onSyncStart } = {}) {
         
         if (result.success) {
           results.success++;
-          onSyncSuccess?.(result.order, result.response);
+          onSyncSuccessRef.current?.(result.order, result.response);
         } else {
           results.failed++;
-          onSyncError?.(result.order, result.error);
+          onSyncErrorRef.current?.(result.order, result.error);
         }
 
         // Pequeña pausa entre órdenes para no saturar el servidor
@@ -106,15 +126,7 @@ export function useOrderSync({ onSyncSuccess, onSyncError, onSyncStart } = {}) {
       setIsSyncing(false);
       await updatePendingCount();
     }
-  }, [syncOrder, onSyncStart, onSyncSuccess, onSyncError]);
-
-  /**
-   * Actualiza el contador de órdenes pendientes
-   */
-  const updatePendingCount = useCallback(async () => {
-    const count = await getPendingOrdersCount();
-    setPendingCount(count);
-  }, []);
+  }, [syncOrder, updatePendingCount]);
 
   /**
    * Listener para cuando vuelve la conexión

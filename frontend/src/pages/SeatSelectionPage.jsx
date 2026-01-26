@@ -20,6 +20,8 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
   const { id } = useParams();
   const navigate = useNavigate();
   const { upsertEventSeats, items } = useCart();
+  
+  console.log('[SeatSelectionPage] Render - Event ID:', id);
   const [event, setEvent] = useState(null);
   const [seats, setSeats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,8 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
   const pendingLocksRef = useRef({}); // { seatId: AbortController }
 
   useEffect(() => {
+    console.log('[SeatSelectionPage] useEffect[id] - Montando/actualizando, id:', id);
+    
     const fetchEvent = async () => {
       setLoading(true);
       try {
@@ -61,6 +65,7 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
     
     // Cleanup: unlock all selected seats on unmount
     return () => {
+      console.log('[SeatSelectionPage] useEffect[id] - CLEANUP/UNMOUNT');
       // Cancelar pending locks
       Object.values(pendingLocksRef.current).forEach(controller => {
         controller?.abort();
@@ -263,6 +268,7 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
   }, [isAuthenticated, onRequireAuth, onToast, seatOperations, selectedSeats, selectSeat, deselectSeat]);
 
   const handleContinue = () => {
+    console.log('[SeatSelectionPage] handleContinue - selectedSeats:', selectedSeats.length);
     if (selectedSeats.length === 0) return;
 
     if (!isAuthenticated) {
@@ -272,9 +278,11 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
     }
 
     const uniqueEvents = new Set(items.map(i => i.eventId));
+    console.log('[SeatSelectionPage] handleContinue - uniqueEvents:', uniqueEvents.size);
 
     // Si hay más de un evento en el carrito, ir al checkout multi-evento
     if (uniqueEvents.size > 1) {
+      console.log('[SeatSelectionPage] handleContinue - Navegando a /cart/checkout');
       navigate('/cart/checkout');
       return;
     }
@@ -282,6 +290,7 @@ export default function SeatSelectionPage({ onToast, isAuthenticated, onRequireA
     // Caso de un solo evento: flujo tradicional
     sessionStorage.setItem('selectedSeats', JSON.stringify(selectedSeats));
     sessionStorage.setItem('eventData', JSON.stringify(event));
+    console.log('[SeatSelectionPage] handleContinue - Navegando a /event/' + id + '/checkout');
     navigate(`/event/${id}/checkout`);
   };
 

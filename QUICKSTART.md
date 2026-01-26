@@ -53,11 +53,17 @@ Todos los scripts están en la carpeta `.\scripts\`:
 # Parar todos los servicios (mantiene datos)
 .\scripts\dev-down.sh
 
-# Reiniciar servicios (después de parar)
-.\scripts\dev-up.sh
+# Reiniciar servicios (después de parar) - PowerShell para K8s
+.\scripts\dev-up.ps1
 
 # Resetear completamente (borra todo)
 .\scripts\dev-recreate-network.sh
+
+# ⭐ NUEVO: Detener TODO completamente (mantiene datos)
+.\scripts\full-stop.ps1
+
+# ⚠️ Limpiar completamente incluyendo datos (reinicio total)
+.\scripts\full-cleanup.ps1
 ```
 
 ### Otros
@@ -115,7 +121,7 @@ Todos los scripts están en la carpeta `.\scripts\`:
 | `start-port-forwards.ps1` | Abrir port-forwards | `.\scripts\start-port-forwards.ps1` |
 | `stop-port-forwards.ps1` | Cerrar port-forwards | `.\scripts\stop-port-forwards.ps1` |
 | `dev-status.sh` | Ver estado de todos los pods | `.\scripts\dev-status.sh` |
-| `dev-up.sh` | Iniciar servicios | `.\scripts\dev-up.sh` |
+| `dev-up.ps1` | Iniciar servicios (K8s) | `.\scripts\dev-up.ps1` |
 | `dev-down.sh` | Parar servicios | `.\scripts\dev-down.sh` |
 | `dev-recreate-network.sh` | Reiniciar todo | `.\scripts\dev-recreate-network.sh` |
 | `dev-verify.sh` | Verificar conectividad | `.\scripts\dev-verify.sh` |
@@ -277,12 +283,12 @@ Para todos los servicios (mantiene datos):
 .\scripts\dev-down.sh
 ```
 
-### dev-up.sh
+### dev-up.ps1
 
-Reinicia los servicios:
+Reinicia los servicios en Kubernetes:
 
 ```powershell
-.\scripts\dev-up.sh
+.\scripts\dev-up.ps1
 ```
 
 ### dev-recreate-network.sh

@@ -36,6 +36,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Configuración de navegación para SPA - crítico para React Router
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [
+          /^\/api\//,           // No interceptar llamadas API
+          /\.[^/?]+$/,          // No interceptar archivos con extensión
+        ],
         runtimeCaching: [
           {
             // Cache de eventos con StaleWhileRevalidate
@@ -79,11 +85,14 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
         type: 'module',
         navigateFallback: 'index.html',
-        // Excluir rutas de API del Service Worker para evitar problemas de navegación
-        navigateFallbackDenylist: [/^\/api\//]
+        // Excluir rutas de API y archivos con extensión del Service Worker
+        navigateFallbackDenylist: [
+          /^\/api\//,
+          /\.[^/?]+$/
+        ]
       }
     })
   ],

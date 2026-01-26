@@ -6,7 +6,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
 
-const NOTIFICATION_SERVER = import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:4000';
+// Prefer env override; fall back to same origin to avoid mismatched ports in dev
+const NOTIFICATION_SERVER = import.meta.env.VITE_NOTIFICATION_URL || window.location.origin;
 
 // Flag para evitar spam de logs
 let connectionWarningShown = false;

@@ -7,6 +7,9 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
   const { id } = useParams();
   const navigate = useNavigate();
   const { items, clearEvent } = useCart();
+  
+  console.log('[CheckoutPage] Render - Event ID:', id);
+  
   const [event, setEvent] = useState(null);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [processing, setProcessing] = useState(false);
@@ -14,6 +17,7 @@ export default function CheckoutPage({ onToast, isAuthenticated, onRequireAuth }
   const [orderResult, setOrderResult] = useState(null);
 
   useEffect(() => {
+    console.log('[CheckoutPage] useEffect - Montado, id:', id);
     // Recuperar datos de sessionStorage
     const storedSeats = sessionStorage.getItem('selectedSeats');
     const storedEvent = sessionStorage.getItem('eventData');

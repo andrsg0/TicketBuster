@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { syncCart } from '../services/api';
 
 const CartContext = createContext();
@@ -56,10 +56,16 @@ export function CartProvider({ children }) {
     return () => window.removeEventListener('online', handleOnline);
   }, [items]);
 
-  const upsertEventSeats = (event, seats) => {
+  const upsertEventSeats = useCallback((event, seats) => {
     if (!event || !Array.isArray(seats)) return;
     setItems(prev => {
       const withoutEvent = prev.filter(i => i.eventId !== event.id);
+      
+      // Si no hay asientos nuevos y tampoco había antes, no hacer nada
+      if (seats.length === 0 && withoutEvent.length === prev.length) {
+        return prev;
+      }
+      
       const nextSeats = seats.map(seat => ({
         id: seat.id,
         eventId: event.id,
@@ -72,9 +78,20 @@ export function CartProvider({ children }) {
         row: seat.row,
         seat_number: seat.seat_number,
       }));
+      
+      // Comparar si los asientos son los mismos para evitar re-renders
+      const currentEventSeats = prev.filter(i => i.eventId === event.id);
+      if (currentEventSeats.length === nextSeats.length) {
+        const currentIds = currentEventSeats.map(s => s.id).sort().join(',');
+        const nextIds = nextSeats.map(s => s.id).sort().join(',');
+        if (currentIds === nextIds) {
+          return prev; // No hay cambios, retornar el mismo array
+        }
+      }
+      
       return [...withoutEvent, ...nextSeats];
     });
-  };
+  }, []);
 
   const removeItem = (seatId) => {
     setItems(prev => prev.filter(i => i.id !== seatId));

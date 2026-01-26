@@ -253,21 +253,23 @@ export default function EventDetailPage() {
           </div>
 
           {/* Botón de comprar */}
-          <button
-            onClick={() => navigate(`/event/${id}/seats`)}
-            disabled={availableSeatsCount === 0}
-            className={`
-              w-full py-4 px-6 rounded-2xl font-bold text-lg flex items-center justify-center gap-3
-              transition-all shadow-lg
-              ${availableSeatsCount > 0 
-                ? 'bg-primary text-white hover:bg-primary-dark hover:shadow-xl active:scale-[0.98]' 
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }
-            `}
-          >
-            <span className="material-symbols-outlined">confirmation_number</span>
-            {availableSeatsCount > 0 ? 'Seleccionar Asientos' : 'Agotado'}
-          </button>
+          {availableSeatsCount > 0 ? (
+            <Link
+              to={`/event/${id}/seats`}
+              className="w-full py-4 px-6 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg bg-primary text-white hover:bg-primary-dark hover:shadow-xl active:scale-[0.98]"
+            >
+              <span className="material-symbols-outlined">confirmation_number</span>
+              Seleccionar Asientos
+            </Link>
+          ) : (
+            <button
+              disabled
+              className="w-full py-4 px-6 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg bg-gray-300 text-gray-500 cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined">confirmation_number</span>
+              Agotado
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@
 ## 🔐 Autenticación y Usuarios
 
 - [x] **Login con Keycloak** - Integrar autenticación real con Keycloak
-  - [ ] Configurar Keycloak en K8s
+  - [x] Configurar Keycloak en K8s
   - [x] Crear realm `ticketbuster`
   - [x] Configurar cliente para frontend (SPA)
   - [x] Implementar flujo OAuth2/OIDC en frontend
@@ -50,61 +50,28 @@
   - [x] Permitir comprar asientos de diferentes eventos en una sola orden
   - [x] Agrupar tickets por evento en confirmación
 
----
-
-## 💳 Pagos
-
-- [ ] **Integrar pasarela de pagos**
-  - [ ] Integrar Stripe/PayPal/MercadoPago
-  - [ ] Formulario de pago seguro
-  - [ ] Webhooks para confirmación de pago
-
-- [ ] **Facturación**
-  - [ ] Generar factura/boleta PDF
-  - [ ] Enviar por email
-  - [ ] Historial de facturas
 
 ---
 
 ## 📱 Frontend / UX
 
-- [ ] **Mejorar selección de asientos**
-  - [ ] Mapa visual del venue (SVG interactivo)
-  - [ ] Zoom y pan en el mapa
-  - [ ] Colores por precio/sección
-  - [ ] Leyenda de estados
+- [x] **Mejorar selección de asientos**
+  - [x] Colores por precio/sección
+  - [x] Leyenda de estados
 
-- [ ] **Búsqueda y filtros**
-  - [ ] Barra de búsqueda por nombre de evento
-  - [ ] Filtros por categoría, fecha, precio
-  - [ ] Ordenar por fecha, precio, popularidad
-
-- [ ] **Favoritos**
-  - [ ] Guardar eventos favoritos
-  - [ ] Notificar cuando hay nuevos asientos disponibles
-
-- [ ] **Historial de compras**
-  - [ ] Ver todas las órdenes pasadas
-  - [ ] Descargar tickets anteriores
-  - [ ] Ver estado de cada orden
-
-- [ ] **Notificaciones push**
-  - [ ] Solicitar permiso de notificaciones
-  - [ ] Notificar confirmación de compra
-  - [ ] Notificar recordatorio antes del evento
+- [x] **Búsqueda y filtros**
+  - [x] Barra de búsqueda por nombre de evento
+  - [x] Filtros por categoría, fecha, precio
+  - [x] Ordenar por fecha, precio, popularidad
 
 ---
 
 ## 🎫 Tickets y QR
 
 - [ ] **Generar QR codes**
-  - [ ] QR único por cada ticket
+  - [x] QR único por cada ticket
   - [ ] Incluir hash de verificación
   - [ ] Almacenar en BD y mostrar en frontend
-
-- [ ] **Wallet digital**
-  - [ ] Agregar ticket a Apple Wallet
-  - [ ] Agregar ticket a Google Pay
 
 - [ ] **Validación de tickets**
   - [ ] App/página para escanear QR en entrada
@@ -149,52 +116,13 @@
   - [ ] Conectar frontend a notification-service
   - [ ] Mostrar notificaciones en UI
   - [ ] Reconexión automática
+  - [ ] Solicitar permiso de notificaciones
 
 - [ ] **Tipos de notificaciones**
   - [ ] Orden confirmada
   - [ ] Orden fallida
   - [ ] Asiento liberado (para waitlist)
   - [ ] Recordatorio de evento
-
----
-
-## 🏗️ Infraestructura y DevOps
-
-- [ ] **CI/CD Pipeline**
-  - [ ] GitHub Actions para build automático
-  - [ ] Tests automáticos en PR
-  - [ ] Deploy automático a staging
-  - [ ] Deploy manual a producción
-
-- [ ] **Monitoreo**
-  - [ ] Instalar Prometheus + Grafana
-  - [ ] Dashboards de métricas
-  - [ ] Alertas por Slack/email
-
-- [ ] **Logging centralizado**
-  - [ ] ELK Stack o Loki
-  - [ ] Búsqueda de logs
-  - [ ] Correlación de requests
-
-- [ ] **Secrets management**
-  - [ ] Usar Kubernetes Secrets encriptados
-  - [ ] O integrar con Vault/AWS Secrets Manager
-
----
-
-## 🧪 Testing
-
-- [ ] **Unit tests**
-  - [ ] Tests para cada microservicio
-  - [ ] Cobertura mínima 80%
-
-- [ ] **Integration tests**
-  - [ ] Tests de API end-to-end
-  - [ ] Tests de flujos completos
-
-- [ ] **E2E tests**
-  - [ ] Cypress o Playwright para frontend
-  - [ ] Flujo completo de compra
 
 ---
 
@@ -207,11 +135,6 @@
 - [ ] **Arquitectura**
   - [ ] Diagrama de arquitectura actualizado
   - [ ] Diagrama de secuencia para flujos principales
-
-- [ ] **Guía de contribución**
-  - [ ] Cómo configurar entorno de desarrollo
-  - [ ] Estándares de código
-  - [ ] Proceso de PR
 
 ---
 
