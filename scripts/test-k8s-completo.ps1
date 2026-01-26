@@ -134,13 +134,7 @@ while ($waited -lt $maxWaitKc) {
     if ($kcReady -eq "Running") {
         $kcContainerReady = kubectl get pods -n $NAMESPACE -l app=keycloak -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>&1
         if ($kcContainerReady -eq "true") {
-            Write-Host "  [OK] Keycloak listo" -ForegroundColor Green
-            # Iniciar port-forward temporal para inicializar usuarios
-            $kcPortForward = Start-Process powershell -ArgumentList "-Command", "kubectl port-forward svc/keycloak 8080:8080 -n $NAMESPACE" -PassThru
-            Start-Sleep -Seconds 5
-            # Inicializar usuarios de Keycloak
-            & "$ROOT_DIR\scripts\init-keycloak-users.ps1"
-            Stop-Process -Id $kcPortForward.Id -Force -ErrorAction SilentlyContinue
+            Write-Host "  [OK] Keycloak listo (usuarios importados desde realm config)" -ForegroundColor Green
             break
         }
     }
@@ -174,8 +168,14 @@ Start-Sleep -Seconds 5
 $pgPod = kubectl get pods -n $NAMESPACE -l app=postgres -o jsonpath='{.items[0].metadata.name}' 2>&1
 
 # Verificar si la BD ya tiene datos (si la tabla no existe, el count falla y eso está bien)
-$eventCount = kubectl exec -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -t -c "SELECT COUNT(*) FROM db_catalog.events;" 2>&1
-$eventCount = ($eventCount -replace '\s','')
+$eventCountRaw = kubectl exec -n $NAMESPACE $pgPod -- psql -U admin -d ticketbuster -t -c "SELECT COUNT(*) FROM db_catalog.events;" 2>&1
+
+# Manejar caso donde el resultado es un array (tomar el primer elemento que es el número)
+if ($eventCountRaw -is [array]) {
+    $eventCount = ($eventCountRaw | Where-Object { $_ -match '^\s*\d+\s*$' } | Select-Object -First 1) -replace '\s',''
+} else {
+    $eventCount = ($eventCountRaw -replace '\s','')
+}
 
 # Si el eventCount es un número > 0, skip init.sql
 # Si no es un número (error porque la tabla no existe), o es 0, ejecutar init.sql
@@ -263,10 +263,12 @@ Start-Process "http://localhost:5173"
 
 Write-Host ""
 Write-Host "Comandos utiles:" -ForegroundColor Yellow
-Write-Host "  Ver pods:    kubectl get pods -n $NAMESPACE"
-Write-Host "  Ver logs:    kubectl logs -f deployment/order-worker -n $NAMESPACE"
-Write-Host "  Ver HPA:     kubectl get hpa -n $NAMESPACE"
-Write-Host "  Eliminar:    kubectl delete namespace $NAMESPACE"
+Write-Host "  Ver pods:      kubectl get pods -n $NAMESPACE"
+Write-Host "  Ver logs:      kubectl logs -f deployment/order-worker -n $NAMESPACE"
+Write-Host "  Ver HPA:       kubectl get hpa -n $NAMESPACE"
+Write-Host "  Detener todo:  .\scripts\stop-all.ps1"
+Write-Host "  Eliminar:      .\scripts\stop-all.ps1 -DeleteNamespace"
+Write-Host "  Reset total:   .\scripts\stop-all.ps1 -DeleteData"
 Write-Host ""
 Write-Host "Presiona Ctrl+C para salir (los port-forwards seguiran corriendo)" -ForegroundColor DarkGray
 Write-Host ""

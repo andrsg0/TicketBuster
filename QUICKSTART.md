@@ -40,40 +40,37 @@ Todos los scripts están en la carpeta `.\scripts\`:
 ### Monitoreo y Estado
 
 ```powershell
-# Ver estado en tiempo real (pods, memoria, CPU)
-.\scripts\dev-status.sh
+# Ver estado de los pods
+kubectl get pods -n ticketbuster
 
-# Verificar que todo está conectado correctamente
-.\scripts\dev-verify.sh
+# Ver logs de un servicio específico
+kubectl logs -f deployment/order-worker -n ticketbuster
+
+# Ver autoscaling
+kubectl get hpa -n ticketbuster
 ```
 
 ### Control de Servicios
 
 ```powershell
-# Parar todos los servicios (mantiene datos)
-.\scripts\dev-down.sh
+# Detener port-forwards (mantiene pods corriendo)
+.\scripts\stop-all.ps1
 
-# Reiniciar servicios (después de parar) - PowerShell para K8s
-.\scripts\dev-up.ps1
+# Detener pods (mantiene datos persistentes)
+.\scripts\stop-all.ps1 -DeleteNamespace
 
-# Resetear completamente (borra todo)
-.\scripts\dev-recreate-network.sh
-
-# ⭐ NUEVO: Detener TODO completamente (mantiene datos)
-.\scripts\full-stop.ps1
-
-# ⚠️ Limpiar completamente incluyendo datos (reinicio total)
-.\scripts\full-cleanup.ps1
+# Resetear completamente (borra TODO incluyendo datos)
+.\scripts\stop-all.ps1 -DeleteData
 ```
 
-### Otros
+### Reiniciar Servicios
 
 ```powershell
-# Cerrar port-forwards (cuando quieras detener acceso)
-.\scripts\stop-port-forwards.ps1
+# Reiniciar port-forwards si se cerraron
+.\scripts\start-port-forwards.ps1
 
-# Ejecutar suite de tests
-.\scripts\test-all.sh
+# Reiniciar todo el stack
+.\scripts\test-k8s-completo.ps1
 ```
 
 ---
